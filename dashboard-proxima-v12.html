@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Próxima Telecom · BI Jacobina</title>
+<!-- Bibliotecas Necessárias -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800;900&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+<style>
+/* ══════ IDENTIDADE VISUAL PROXXIMA ══════ */
+:root {
+  --navy: #0A0E27; --mg: #E8007D; --mg-h: #FF1A95; --white: #FFFFFF;
+  --bg: #050714; --card: #0F132E; --text-sec: #94A3B8;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--white); overflow-x: hidden; }
+h1, h2, h3, .syne { font-family: 'Syne', sans-serif; }
+
+/* NAVBAR */
+.navbar { background: var(--navy); padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--mg); position: sticky; top:0; z-index:100; }
+.logo { font-weight: 800; font-size: 1.5rem; color: var(--mg); text-transform: uppercase; letter-spacing: -1px; }
+.sync-badge { font-size: 0.75rem; padding: 6px 12px; border-radius: 20px; background: rgba(232, 0, 125, 0.1); border: 1px solid var(--mg); color: var(--mg); font-weight: bold;}
+
+/* LAYOUT E ABAS */
+.container { padding: 2rem; max-width: 1400px; margin: auto; }
+.tabs { display: flex; gap: 1rem; margin-bottom: 2rem; overflow-x: auto; padding-bottom: 10px; border-bottom: 1px solid #1E293B; }
+.tab-btn { background: transparent; border: none; color: var(--text-sec); padding: 0.8rem 1.5rem; cursor: pointer; font-weight: 600; transition: 0.3s; white-space: nowrap; font-family: 'Syne'; font-size: 1.1rem;}
+.tab-btn:hover { color: var(--white); }
+.tab-btn.active { color: var(--mg); border-bottom: 3px solid var(--mg); }
+
+/* RANKING CARDS */
+.ranking-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem; }
+.card { background: var(--card); border-radius: 20px; padding: 1.5rem; position: relative; border: 1px solid #1E293B; transition: 0.3s; }
+.card:hover { transform: translateY(-5px); border-color: var(--mg); box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+.atendente-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; }
+.avatar { width: 64px; height: 64px; border-radius: 50%; border: 2px solid var(--mg); object-fit: cover; background: #1a1f3d; }
+
+/* ALERTAS DE PERDA E STATUS */
+.tag-container { display: flex; flex-direction: column; gap: 8px; margin-top: 1rem; }
+.loss-tag { background: rgba(255, 68, 68, 0.1); border: 1px solid #ff4444; color: #ff4444; padding: 0.6rem; border-radius: 10px; font-size: 0.8rem; display: flex; align-items: center; gap: 8px; font-weight: 700; }
+.aprov-tag { background: rgba(255, 184, 0, 0.1); border: 1px solid #FFB800; color: #FFB800; padding: 0.6rem; border-radius: 10px; font-size: 0.8rem; display: flex; align-items: center; gap: 8px; font-weight: 700; }
+.status-select { background: #1a1f3d; color: white; border: 1px solid #1E293B; border-radius: 6px; padding: 4px; font-size: 0.75rem; margin-top: 5px; outline: none; }
+
+/* PROGRESSO */
+.metric-row { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 6px; color: var(--text-sec); }
+.progress-bg { height: 10px; background: #1a1f3d; border-radius: 10px; overflow: hidden; margin-bottom: 15px; }
+.progress-fill { height: 100%; background: linear-gradient(90deg, var(--mg), var(--mg-h)); transition: width 1s ease-in-out; }
+
+/* CONFIGS E BOTOES */
+.config-panel { background: var(--card); border-radius: 20px; padding: 2rem; border: 1px solid #1E293B; }
+.input-field { width: 100%; padding: 1rem; background: #050714; border: 1px solid #1E293B; border-radius: 10px; color: white; margin: 10px 0 20px 0; font-family: 'DM Sans';}
+.btn-main { background: var(--mg); color: white; border: none; padding: 1rem 2.5rem; border-radius: 12px; cursor: pointer; font-weight: 700; transition: 0.3s; font-family: 'Syne'; text-transform: uppercase; letter-spacing: 1px;}
+.btn-main:hover { background: var(--mg-h); transform: scale(1.02); }
+.btn-sec { background: #1E293B; color: white; } .btn-sec:hover { background: #2d3e59; }
+.empty-state { padding: 4rem 2rem; text-align: center; color: var(--text-sec); border: 2px dashed #1E293B; border-radius: 20px; }
+</style>
+</head>
+<body>
+
+<nav class="navbar">
+  <div class="logo">Próxima <span style="color:white">Telecom</span></div>
+  <div id="sync-status" class="sync-badge">⏳ A Sincronizar...</div>
+</nav>
+
+<div class="container">
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('ranking'); triggerConfetti();">MÊS ATUAL (<span id="mes-label">RANKING</span>)</button>
+    <button class="tab-btn" onclick="switchTab('insights')">INSIGHTS</button>
+    <button class="tab-btn" onclick="switchTab('config')">⚙️ GESTÃO & NUVEM</button>
+  </div>
+
+  <!-- ABA PRINCIPAL: RANKING -->
+  <div id="tab-ranking" class="tab-content">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2rem; flex-wrap: wrap; gap: 1rem;">
+      <h2 class="syne" style="font-size:1.8rem;">Performance <span style="color:var(--mg)">Global da Unidade</span></h2>
+      <div>
+        <input type="file" id="fileInput" accept=".csv,.xlsx" style="display:none" onchange="handleLocalFile(this)">
+        <button class="btn-main" onclick="document.getElementById('fileInput').click()">+ PROCESSAR RELATÓRIO LOCAL</button>
+        <button class="btn-main btn-sec" onclick="fetchFromGoogleSheets()">🔄 ATUALIZAR DA PLANILHA</button>
+      </div>
+    </div>
+    <div id="ranking-container" class="ranking-grid">
+      <div class="empty-state" style="grid-column: 1 / -1;">Aguardando dados... Importe o arquivo ou sincronize a nuvem.</div>
+    </div>
+  </div>
+
+  <!-- ABA: INSIGHTS -->
+  <div id="tab-insights" class="tab-content" style="display:none">
+    <h2 class="syne" style="margin-bottom:2rem;">Inteligência e Recordes</h2>
+    <div class="ranking-grid">
+      <div class="card">
+        <h3 class="syne" style="color:var(--text-sec); font-size: 1rem;">Melhor Dia de Vendas 🚀</h3>
+        <p id="insight-best-day" style="font-size: 1.5rem; font-weight: bold; margin-top: 10px; color: #00F5A0;">-</p>
+      </div>
+      <div class="card">
+        <h3 class="syne" style="color:var(--text-sec); font-size: 1rem;">Dia com Menor Volume 📉</h3>
+        <p id="insight-worst-day" style="font-size: 1.5rem; font-weight: bold; margin-top: 10px; color: #ff4444;">-</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ABA: CONFIG & NUVEM -->
+  <div id="tab-config" class="tab-content" style="display:none">
+    <div class="config-panel">
+      
+      <!-- SINCRONIZAÇÃO -->
+      <h3 class="syne">Sincronização com Google Sheets</h3>
+      <p style="color:var(--text-sec); margin:10px 0;">URL do CSV publicado do Google Sheets.</p>
+      <input type="text" id="remote-url" class="input-field" placeholder="https://docs.google.com/spreadsheets/d/.../export?format=csv">
+      <button class="btn-main" onclick="saveRemoteConfig()">SALVAR E SINCRONIZAR</button>
+      
+      <hr style="border:0; border-top:1px solid #1E293B; margin:2rem 0;">
+      
+      <!-- GESTÃO DE EQUIPE -->
+      <h3 class="syne">Gestão de Equipe & Metas</h3>
+      <div class="metric-row" style="margin-top: 15px;">
+        <label style="width: 100%;">Meta Semanal Padrão (R$):
+          <input type="number" id="meta-padrao" class="input-field" value="1362" onchange="updateMeta()">
+        </label>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// ESTADO GLOBAL DA APLICAÇÃO
+let APP_STATE = {
+  metaSemanal: 1362,
+  remoteUrl: 'https://docs.google.com/spreadsheets/d/1tyXHIxYfmTTKSOMMyPyTXnIySnDOhJeWdZBSxjtyn8g/export?format=csv',
+  vendas: {}, 
+  equipe: {}, 
+  insights: { bestDay: '-', worstDay: '-' },
+  mesAtual: 'RANKING'
+};
+
+const mesesNomes = {
+  '01': 'JANEIRO', '02': 'FEVEREIRO', '03': 'MARÇO', '04': 'ABRIL',
+  '05': 'MAIO', '06': 'JUNHO', '07': 'JULHO', '08': 'AGOSTO',
+  '09': 'SETEMBRO', '10': 'OUTUBRO', '11': 'NOVEMBRO', '12': 'DEZEMBRO'
+};
+
+// ==========================================
+// 1. MOTOR DE CÁLCULO E REGRAS
+// ==========================================
+function processDataRules(rows) {
+  APP_STATE.vendas = {};
+  let vendasPorDia = {};
+  let mesesEncontrados = {};
+
+  rows.forEach(row => {
+    // MAPEAMENTO DINÂMICO DE COLUNAS (trata espaços)
+    const getVal = (keys) => {
+        for(let k of keys) {
+            if(row[k] !== undefined) return row[k];
+        }
+        return undefined;
+    };
+
+    const nome = getVal(['Nome Colaborador', 'Nome'])?.toString().trim();
+    const valorRaw = getVal(['R$ Vendas', 'Valor', 'R$']);
+    const statusContrato = getVal(['Estágio Contrato Proxxima', 'Estagio'])?.toString().toUpperCase().trim() || '';
+    const dataVenda = getVal(['Date (Data Venda Contrato Proxxima)', 'Data'])?.toString().split('T')[0] || '';
+
+    if (nome && valorRaw !== undefined) {
+      // CORREÇÃO: TRATAMENTO NUMÉRICO
+      let valor = 0;
+      if (typeof valorRaw === 'string') {
+        valor = parseFloat(valorRaw.replace(/\./g, '').replace(',', '.'));
+      } else {
+        valor = parseFloat(valorRaw);
+      }
+      if (isNaN(valor)) valor = 0;
+
+      // CORREÇÃO: BUG DO MÊS (YYYY-MM-DD)
+      if (dataVenda.includes('-')) {
+        const parts = dataVenda.split('-');
+        if (parts.length >= 2) {
+            const mesNum = parts[1];
+            mesesEncontrados[mesNum] = (mesesEncontrados[mesNum] || 0) + 1;
+        }
+      }
+
+      if (!APP_STATE.vendas[nome]) {
+        APP_STATE.vendas[nome] = { realizado: 0, perdas: 0, emAprovacao: 0 };
+      }
+      if (!APP_STATE.equipe[nome]) {
+        APP_STATE.equipe[nome] = { status: 'Ativa', foto: '' };
+      }
+
+      // CORREÇÃO: REGRAS DE CHURN E APROVAÇÃO
+      if (statusContrato === 'CANCELADO' || statusContrato === 'REJEITADO') {
+        APP_STATE.vendas[nome].perdas++;
+      } else if (statusContrato === 'EM APROVAÇÃO') {
+        APP_STATE.vendas[nome].realizado += valor;
+        APP_STATE.vendas[nome].emAprovacao++;
+        if(dataVenda && valor > 0) vendasPorDia[dataVenda] = (vendasPorDia[dataVenda] || 0) + valor;
+      } else {
+        // Aprovado ou normal
+        APP_STATE.vendas[nome].realizado += valor;
+        if(dataVenda && valor > 0) vendasPorDia[dataVenda] = (vendasPorDia[dataVenda] || 0) + valor;
+      }
+    }
+  });
+
+  // Atualiza Mês
+  if (Object.keys(mesesEncontrados).length > 0) {
+      const mesPrincipal = Object.keys(mesesEncontrados).reduce((a, b) => mesesEncontrados[a] > mesesEncontrados[b] ? a : b);
+      APP_STATE.mesAtual = mesesNomes[mesPrincipal] || 'RANKING';
+      document.getElementById('mes-label').innerText = APP_STATE.mesAtual;
+  }
+
+  processInsights(vendasPorDia);
+  saveLocalState();
+  renderRanking();
+  triggerConfetti();
+}
+
+// Lida com arquivo XLSX/CSV local
+function handleLocalFile(input) {
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const data = new Uint8Array(e.target.result);
+    const workbook = XLSX.read(data, {type: 'array'});
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet);
+    processDataRules(rows);
+    document.getElementById('sync-status').innerText = "☁️ Dados Locais (Atualizado)";
+  };
+  reader.readAsArrayBuffer(input.files[0]);
+}
+
+// Lida com Google Sheets via CSV
+async function fetchFromGoogleSheets() {
+    const url = APP_STATE.remoteUrl;
+    if(!url || !url.includes('http')) {
+        document.getElementById('sync-status').innerText = "⚠️ Sem URL Google Sheets";
+        return;
+    }
+
+    document.getElementById('sync-status').innerText = "⏳ A Sincronizar (Sheets)...";
+    
+    try {
+        const response = await fetch(url, {cache: "no-store"});
+        if (!response.ok) throw new Error("Erro na rede");
+        const csvText = await response.text();
+        
+        // CSV manual parser (simples)
+        const workbook = XLSX.read(csvText, {type: 'string'});
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet);
+        
+        processDataRules(rows);
+        document.getElementById('sync-status').innerText = "✅ Sincronizado c/ Planilha";
+        document.getElementById('sync-status').style.color = "#00F5A0";
+        document.getElementById('sync-status').style.borderColor = "#00F5A0";
+    } catch (e) {
+        console.error(e);
+        document.getElementById('sync-status').innerText = "❌ Erro ao baixar Planilha";
+        document.getElementById('sync-status').style.color = "#ff4444";
+    }
+}
+
+// ==========================================
+// 2. RENDERIZAÇÃO
+// ==========================================
+function renderRanking() {
+  const container = document.getElementById('ranking-container');
+  container.innerHTML = '';
+  
+  const entries = Object.entries(APP_STATE.vendas);
+  if(entries.length === 0) {
+    container.innerHTML = '<div class="empty-state" style="grid-column: 1 / -1;">Nenhum dado encontrado no arquivo processado.</div>';
+    return;
+  }
+
+  // Ordena por maior faturamento (Mérito total)
+  const sorted = entries.sort((a,b) => b[1].realizado - a[1].realizado);
+
+  sorted.forEach(([nome, info], index) => {
+    const equipeInfo = APP_STATE.equipe[nome] || { status: 'Ativa' };
+    const isAusente = equipeInfo.status !== 'Ativa';
+    
+    // CORREÇÃO: Faturamento não é zerado se ausente. Apenas a meta.
+    let metaAtual = isAusente ? 0 : APP_STATE.metaSemanal;
+    
+    // Progresso visual: Se está de férias e vendeu algo, barra enche. Se meta 0, barra cheia se venda > 0.
+    let pct = 0;
+    if(metaAtual > 0) {
+        pct = Math.min((info.realizado / metaAtual) * 100, 100);
+    } else if (info.realizado > 0) {
+        pct = 100;
+    }
+    
+    const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`;
+    const corStatus = isAusente ? '#ffb800' : '#00F5A0';
+    const avatarUrl = equipeInfo.foto || `https://ui-avatars.com/api/?name=${encodeURIComponent(nome)}&background=E8007D&color=fff&bold=true`;
+
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="atendente-header">
+        <img src="${avatarUrl}" class="avatar">
+        <div style="flex-grow: 1;">
+          <h3 class="syne" style="font-size:1.1rem; margin-bottom: 4px;">${medal} ${nome.split(' ')[0]} ${nome.split(' ')[1] || ''}</h3>
+          <select class="status-select" style="border-color:${corStatus}; color:${corStatus}" onchange="updateStatus('${nome}', this.value)">
+            <option value="Ativa" ${equipeInfo.status === 'Ativa' ? 'selected' : ''}>Ativa</option>
+            <option value="Férias" ${equipeInfo.status === 'Férias' ? 'selected' : ''}>Férias</option>
+            <option value="Atestado" ${equipeInfo.status === 'Atestado' ? 'selected' : ''}>Atestado</option>
+            <option value="Licença" ${equipeInfo.status === 'Licença' ? 'selected' : ''}>Licença</option>
+          </select>
+        </div>
+      </div>
+      
+      <div class="metric-row">
+        <span>Faturamento:</span>
+        <span style="color:white; font-weight:700; font-size: 1rem;">R$ ${info.realizado.toLocaleString('pt-BR', {minimumFractionDigits:2})}</span>
+      </div>
+      
+      <div class="progress-bg">
+        <div class="progress-fill" style="width:${pct}%; background: ${isAusente ? '#ffb800' : 'linear-gradient(90deg, var(--mg), var(--mg-h))'}"></div>
+      </div>
+
+      <div class="metric-row">
+        <span>Meta Semanal:</span>
+        <span>${isAusente ? 'Isenta' : 'R$ ' + metaAtual}</span>
+      </div>
+
+      <div class="tag-container">
+          ${info.perdas > 0 ? `
+            <div class="loss-tag">
+              ⚠️ <span>${info.perdas} Contrato(s) Cancelado/Rejeitado</span>
+            </div>
+          ` : ''}
+          ${info.emAprovacao > 0 ? `
+            <div class="aprov-tag">
+              ⏳ <span>${info.emAprovacao} Contrato(s) Em Aprovação</span>
+            </div>
+          ` : ''}
+      </div>
+    `;
+    container.appendChild(card);
+  });
+}
+
+function processInsights(dias) {
+  const entries = Object.entries(dias);
+  if(entries.length > 0) {
+    const sorted = entries.sort((a,b) => b[1] - a[1]);
+    APP_STATE.insights.bestDay = `${formatDate(sorted[0][0])} <br><span style="font-size:1rem; color:var(--text-sec)">R$ ${sorted[0][1].toLocaleString('pt-BR', {minimumFractionDigits:2})}</span>`;
+    APP_STATE.insights.worstDay = `${formatDate(sorted[sorted.length-1][0])} <br><span style="font-size:1rem; color:var(--text-sec)">R$ ${sorted[sorted.length-1][1].toLocaleString('pt-BR', {minimumFractionDigits:2})}</span>`;
+  }
+  updateInsightsUI();
+}
+
+function updateInsightsUI() {
+  document.getElementById('insight-best-day').innerHTML = APP_STATE.insights.bestDay;
+  document.getElementById('insight-worst-day').innerHTML = APP_STATE.insights.worstDay;
+}
+
+function formatDate(dateString) {
+  if(!dateString) return '';
+  const parts = dateString.split('-');
+  if(parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  return dateString;
+}
+
+// ==========================================
+// 3. SINCRONIZAÇÃO E CONFIGURAÇÕES
+// ==========================================
+function updateMeta() {
+  APP_STATE.metaSemanal = parseFloat(document.getElementById('meta-padrao').value) || 0;
+  saveLocalState();
+  renderRanking();
+}
+
+function updateStatus(nome, novoStatus) {
+  if(APP_STATE.equipe[nome]) {
+    APP_STATE.equipe[nome].status = novoStatus;
+    saveLocalState();
+    renderRanking();
+  }
+}
+
+function saveRemoteConfig() {
+  const url = document.getElementById('remote-url').value;
+  APP_STATE.remoteUrl = url;
+  saveLocalState();
+  if(url) fetchFromGoogleSheets();
+}
+
+// ==========================================
+// 4. UTILITÁRIOS
+// ==========================================
+function saveLocalState() {
+  localStorage.setItem('bi_jacobina_state_v12', JSON.stringify(APP_STATE));
+}
+
+function loadLocalState() {
+  const saved = localStorage.getItem('bi_jacobina_state_v12');
+  if(saved) {
+    const parsed = JSON.parse(saved);
+    APP_STATE = {...APP_STATE, ...parsed};
+    document.getElementById('meta-padrao').value = APP_STATE.metaSemanal;
+    document.getElementById('remote-url').value = APP_STATE.remoteUrl || '';
+    if (APP_STATE.mesAtual) document.getElementById('mes-label').innerText = APP_STATE.mesAtual;
+    renderRanking();
+    updateInsightsUI();
+  } else {
+      document.getElementById('remote-url').value = APP_STATE.remoteUrl;
+  }
+}
+
+function switchTab(tabId) {
+  document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + tabId).style.display = 'block';
+  event.target.classList.add('active');
+}
+
+function triggerConfetti() {
+  confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 }, colors: ['#E8007D', '#FFFFFF', '#0A0E27'] });
+}
+
+// INICIALIZAÇÃO
+window.onload = () => {
+  loadLocalState();
+  // Busca da planilha ao iniciar
+  fetchFromGoogleSheets();
+};
+</script>
+</body>
+</html>
