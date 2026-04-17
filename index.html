@@ -1,0 +1,2087 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Próxima Telecom · BI Jacobina v9</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800;900&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
+<style>
+/* ══════════════════════════════════════════
+   PRÓXIMA TELECOM · BI v6 · Navy + Magenta
+   v6 FIXES: XLSX parsing, loss funnel, records, quality metrics
+══════════════════════════════════════════ */
+:root{
+  --mg:#E8007D;--mg-h:#FF2598;--mg-dim:rgba(232,0,125,.14);
+  --mg-glow:0 0 28px rgba(232,0,125,.32);
+  --nv:#0B1229;--nv2:#0F1A3E;--nv3:#152050;--nv4:#1C2B65;--nv5:#243380;
+  --bd:rgba(255,255,255,.065);--bd2:rgba(232,0,125,.22);
+  --tx:#EDF1FF;--tx2:#B0BCE8;--mu:#637098;
+  --green:#00DFA2;--gd:rgba(0,223,162,.12);
+  --yel:#FFCC4D;--yd:rgba(255,204,77,.12);
+  --red:#FF5572;--rd:rgba(255,85,114,.12);
+  --gold:#FFD700;--silv:#C8D4E8;--brnz:#D4956A;
+  --r:14px;--r2:10px;--sh:0 4px 24px rgba(0,0,0,.35);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html{font-size:15px;scroll-behavior:smooth}
+body{font-family:'DM Sans',system-ui,sans-serif;background:var(--nv);color:var(--tx);min-height:100vh;overflow-x:hidden}
+body::before{
+  content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:radial-gradient(ellipse 80% 45% at 50% -5%,rgba(27,42,107,.55) 0%,transparent 65%),
+    radial-gradient(ellipse 40% 35% at 95% 75%,rgba(232,0,125,.07) 0%,transparent 55%),
+    radial-gradient(ellipse 50% 40% at 5% 85%,rgba(27,42,107,.3) 0%,transparent 60%);
+}
+body>*{position:relative;z-index:1}
+
+/* SPLASH */
+#splash{position:fixed;inset:0;z-index:9999;background:var(--nv);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;transition:opacity .5s,visibility .5s}
+#splash.out{opacity:0;visibility:hidden}
+.sp-logo{font-family:'Syne',sans-serif;font-size:36px;font-weight:900;letter-spacing:-1px}
+.sp-logo em{color:var(--mg);font-style:normal}
+.sp-track{width:220px;height:2px;background:rgba(255,255,255,.07);border-radius:99px;overflow:hidden}
+.sp-bar{height:100%;background:linear-gradient(90deg,var(--mg),var(--mg-h));border-radius:99px;width:0;transition:width .08s linear}
+.sp-txt{font-size:12px;color:var(--mu)}
+
+/* HEADER */
+.header{background:rgba(11,18,41,.88);backdrop-filter:blur(18px);border-bottom:1px solid var(--bd);height:60px;padding:0 28px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:300}
+.hb{display:flex;align-items:center;gap:12px}
+.hb-px{width:36px;height:36px;border-radius:9px;background:linear-gradient(135deg,var(--mg),#9400D4);display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:900;font-size:14px;color:#fff;box-shadow:var(--mg-glow)}
+.hb-title{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;letter-spacing:-.3px}
+.hb-sub{font-size:11px;color:var(--mu);margin-top:1px}
+.hr{display:flex;align-items:center;gap:12px}
+.h-live{display:flex;align-items:center;gap:6px;background:var(--mg-dim);border:1px solid var(--bd2);border-radius:20px;padding:4px 11px}
+.h-dot{width:6px;height:6px;border-radius:50%;background:var(--mg);animation:blink 2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+.h-live span{font-size:11px;font-weight:600;color:var(--mg)}
+.h-clk{font-size:11px;color:var(--mu);font-variant-numeric:tabular-nums;letter-spacing:.3px}
+.h-btn{height:28px;padding:0 10px;border-radius:7px;border:1px solid var(--bd);background:transparent;color:var(--mu);font-size:12px;cursor:pointer;display:flex;align-items:center;gap:5px;transition:all .2s}
+.h-btn:hover{border-color:var(--mg);color:var(--mg);background:var(--mg-dim)}
+.h-btn.spin svg{animation:rot .6s linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
+
+/* UPLOAD */
+.upload-zone{margin:16px 28px;border:2px dashed var(--bd);border-radius:var(--r);padding:16px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;background:rgba(255,255,255,.02);transition:border-color .2s,background .2s;cursor:pointer}
+.upload-zone.drag-over{border-color:var(--mg);background:var(--mg-dim)}
+.upload-zone input{display:none}
+.uz-icon{font-size:28px}
+.uz-text p{font-size:13px;font-weight:600;color:var(--tx2)}
+.uz-text span{font-size:11px;color:var(--mu)}
+.uz-status{margin-left:auto;font-size:12px;color:var(--mu)}
+.uz-status.ok{color:var(--green)}.uz-status.err{color:var(--red)}
+.uz-btn{padding:7px 16px;border-radius:8px;border:none;background:var(--mg);color:#fff;font-size:12px;font-weight:600;cursor:pointer;transition:background .2s;white-space:nowrap}
+.uz-btn:hover{background:var(--mg-h)}
+
+/* NAV */
+.nav{background:rgba(11,18,41,.82);backdrop-filter:blur(14px);border-bottom:1px solid var(--bd);padding:0 28px;display:flex;gap:0;overflow-x:auto}
+.nav::-webkit-scrollbar{height:0}
+.nav-tab{padding:13px 20px;font-size:13px;font-weight:500;color:var(--mu);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;transition:all .18s;user-select:none;display:flex;align-items:center;gap:7px}
+.nav-tab.on{color:var(--mg);border-bottom-color:var(--mg)}
+.nav-tab:hover:not(.on){color:var(--tx2)}
+
+/* TABS */
+.page{padding:22px 28px;max-width:1700px;margin:0 auto}
+.tab{display:none}.tab.on{display:block;animation:fadeUp .28s cubic-bezier(.4,0,.2,1)}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+/* GLASS CARD */
+.gc{background:rgba(15,26,62,.72);backdrop-filter:blur(16px);border:1px solid var(--bd);border-radius:var(--r);position:relative;overflow:hidden}
+.gc::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.06),transparent);pointer-events:none}
+
+/* KPI */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:13px;margin-bottom:20px}
+.kc{padding:20px 18px;cursor:default;transition:transform .2s,box-shadow .2s}
+.kc:hover{transform:translateY(-2px);box-shadow:var(--sh)}
+.kc-bar{position:absolute;top:0;left:0;right:0;height:3px;background:var(--ka,var(--mg))}
+.kc-orb{position:absolute;top:-35px;right:-35px;width:90px;height:90px;border-radius:50%;background:radial-gradient(circle,var(--ko,var(--mg-dim)) 0%,transparent 70%);pointer-events:none}
+.kc-label{font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.7px;margin-bottom:9px}
+.kc-val{font-family:'Syne',sans-serif;font-size:26px;font-weight:800;line-height:1;letter-spacing:-.4px}
+.kc-sub{font-size:11px;color:var(--mu);margin-top:6px}
+.kc-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;margin-top:8px}
+.chip-g{background:var(--gd);color:var(--green)}.chip-y{background:var(--yd);color:var(--yel)}.chip-r{background:var(--rd);color:var(--red)}.chip-m{background:var(--mg-dim);color:var(--mg)}.chip-0{background:rgba(255,255,255,.06);color:var(--mu)}
+
+/* SECTION HEADER */
+.sh{font-family:'Syne',sans-serif;font-size:12px;font-weight:700;color:var(--tx2);text-transform:uppercase;letter-spacing:.7px;display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.sh::after{content:'';flex:1;height:1px;background:var(--bd)}
+.sh-act{font-size:11px;font-weight:500;text-transform:none;letter-spacing:0;color:var(--mu);cursor:pointer;transition:color .2s;background:none;border:none;display:flex;align-items:center;gap:4px}
+.sh-act:hover{color:var(--mg)}
+
+/* CHARTS */
+.cr2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px}
+.cr3{display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-bottom:18px}
+.cc{padding:18px}.cw{position:relative}.cw.h240{height:240px}.cw.h280{height:280px}.cw.h320{height:320px}
+
+/* RANKING */
+.rt-wrap{overflow-x:auto}
+.rt{width:100%;border-collapse:collapse;min-width:900px}
+.rt th{font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.5px;padding:9px 11px;text-align:left;border-bottom:1px solid var(--bd);white-space:nowrap}
+.rt td{padding:10px 11px;font-size:12px;border-bottom:1px solid rgba(255,255,255,.04);vertical-align:middle}
+.rt tr:last-child td{border-bottom:none}
+.rt tbody tr{transition:background .12s}
+.rt tbody tr:hover td{background:rgba(232,0,125,.04)}
+.rt .top3 td{background:rgba(255,215,0,.02)}
+.pos{width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
+.p1{background:linear-gradient(135deg,#FFD700,#FF9900);color:#000}.p2{background:linear-gradient(135deg,#C8D4E8,#A0AABB);color:#000}.p3{background:linear-gradient(135deg,#D4956A,#A86840);color:#fff}.pn{background:rgba(255,255,255,.06);color:var(--mu)}
+.mbar{height:5px;border-radius:99px;background:rgba(255,255,255,.07);overflow:hidden;min-width:60px}
+.mbar-f{height:100%;border-radius:99px;transition:width .9s cubic-bezier(.4,0,.2,1)}
+.tag{display:inline-flex;align-items:center;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap}
+.tg{background:var(--gd);color:var(--green)}.ty{background:var(--yd);color:var(--yel)}.tr{background:var(--rd);color:var(--red)}.tm{background:var(--mg-dim);color:var(--mg)}.t0{background:rgba(255,255,255,.06);color:var(--mu)}.ta{background:rgba(74,120,255,.14);color:#4A78FF}.tl{background:rgba(155,89,182,.14);color:#c68dff}
+/* Loss tags */
+.warn-tag{background:rgba(255,204,77,.18);color:var(--yel);display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700}
+.alert-tag{background:var(--rd);color:var(--red);display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700}
+
+/* PÓDIO */
+.podio-scene{display:flex;align-items:flex-end;justify-content:center;gap:16px;padding:28px 20px 0}
+.pi{text-align:center;flex:1;max-width:210px}
+.pi-av{width:62px;height:62px;border-radius:50%;margin:0 auto 10px;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-size:19px;font-weight:900;border:3px solid transparent;overflow:hidden;transition:transform .3s;position:relative}
+.pi:hover .pi-av{transform:scale(1.08) translateY(-3px)}
+.pi.rank1 .pi-av{width:76px;height:76px;font-size:24px;border-color:var(--gold);background:rgba(255,215,0,.1)}
+.pi.rank2 .pi-av{border-color:var(--silv);background:rgba(200,212,232,.07)}
+.pi.rank3 .pi-av{border-color:var(--brnz);background:rgba(212,149,106,.07)}
+.pi-av img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.pi-name{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;margin-bottom:2px}
+.pi-val{font-size:19px;font-weight:700;color:var(--mg);margin:3px 0}
+.pi-qty{font-size:11px;color:var(--mu);margin-bottom:2px}
+.pi-meta{font-size:10px;color:var(--tx2);margin-bottom:2px}
+.pi-pct{font-size:12px;color:var(--mu);margin-bottom:10px}
+.pi-stand{border-radius:10px 10px 0 0;display:flex;align-items:flex-end;justify-content:center;padding-bottom:8px}
+.pi.rank1 .pi-stand{background:linear-gradient(180deg,rgba(255,215,0,.13),rgba(255,215,0,.02));height:88px}
+.pi.rank2 .pi-stand{background:linear-gradient(180deg,rgba(200,212,232,.08),rgba(200,212,232,.01));height:64px}
+.pi.rank3 .pi-stand{background:linear-gradient(180deg,rgba(212,149,106,.08),rgba(212,149,106,.01));height:46px}
+.pi-medal{font-size:24px}
+.status-seal{position:absolute;bottom:-2px;right:-2px;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;border:2px solid var(--nv2);font-weight:700;z-index:2}
+.seal-ferias{background:#FFCC4D;color:#000}.seal-atestado{background:#4A78FF;color:#fff}.seal-licenca{background:#c68dff;color:#000}
+
+/* SEMANAL */
+.wk-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:13px;margin-bottom:18px}
+.wk{padding:18px;transition:transform .2s}.wk:hover{transform:translateY(-2px)}
+.wk-top{position:absolute;top:0;left:0;right:0;height:3px}
+.wk-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px}
+.wk-label{font-family:'Syne',sans-serif;font-size:14px;font-weight:700}
+.wk-period{font-size:10px;color:var(--mu);margin-top:2px}
+.wk-ico{font-size:20px}
+.wk-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px}
+.ws-l{font-size:9px;color:var(--mu);text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px}
+.ws-v{font-family:'Syne',sans-serif;font-size:15px;font-weight:700}
+.ws-q{font-size:10px;color:var(--mu);margin-top:1px}
+.wk-track{height:7px;border-radius:99px;background:rgba(255,255,255,.07);overflow:hidden;margin-bottom:8px}
+.wk-fill{height:100%;border-radius:99px;transition:width 1s cubic-bezier(.4,0,.2,1)}
+.wk-note{font-size:10px;color:var(--mu)}
+.wk-loss{margin-top:8px;padding:6px 10px;border-radius:8px;background:rgba(255,85,114,.07);border:1px solid rgba(255,85,114,.15);font-size:10px;color:var(--red)}
+
+/* INSIGHTS */
+.ins-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:13px;margin-bottom:18px}
+.ic{padding:18px;border-left:3px solid var(--ib,var(--mg));transition:transform .2s}
+.ic:hover{transform:translateY(-2px)}
+.ic-ico{font-size:22px;margin-bottom:9px}
+.ic-title{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;margin-bottom:5px}
+.ic-body{font-size:12px;color:var(--tx2);line-height:1.65}
+.ic-pills{margin-top:9px;display:flex;flex-wrap:wrap;gap:5px}
+
+/* RECORDS */
+.rec-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:13px;margin-bottom:18px}
+.rec{padding:18px}
+.rec-ico{font-size:26px;margin-bottom:6px}
+.rec-label{font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px}
+.rec-val{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;line-height:1.2;margin-bottom:3px}
+.rec-sub{font-size:11px;color:var(--tx2)}
+.rec.best{border-left:3px solid var(--green)}
+.rec.worst{border-left:3px solid var(--red)}
+.rec.gold{border-left:3px solid var(--gold)}
+.rec.mg{border-left:3px solid var(--mg)}
+
+/* QUALITY METRICS (Métricas de Qualidade) */
+.qm-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:13px;margin-bottom:18px}
+.qm{padding:18px}
+.qm-label{font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
+.qm-val{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;margin-bottom:4px}
+.qm-sub{font-size:11px;color:var(--tx2)}
+.loss-table{width:100%;border-collapse:collapse}
+.loss-table th{font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.4px;padding:7px 10px;border-bottom:1px solid var(--bd);text-align:left}
+.loss-table td{padding:9px 10px;font-size:12px;border-bottom:1px solid rgba(255,255,255,.04)}
+.loss-table tbody tr:hover td{background:rgba(255,85,114,.04)}
+
+/* INSIGHTS METRICS */
+.im-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:13px;margin-bottom:18px}
+.im{padding:18px}
+.im-label{font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
+.im-val{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--mg);margin-bottom:4px}
+.im-sub{font-size:11px;color:var(--tx2)}
+.im-trend{display:flex;align-items:center;gap:5px;margin-top:8px;font-size:11px}
+
+/* CONFIG */
+.cfg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-bottom:20px}
+.cfg-card{padding:20px}
+.cfg-title{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;margin-bottom:14px;color:var(--tx)}
+.cfg-row{margin-bottom:12px}
+.cfg-label{font-size:11px;color:var(--mu);margin-bottom:5px;font-weight:500}
+.cfg-input{width:100%;background:rgba(255,255,255,.05);border:1px solid var(--bd);border-radius:8px;color:var(--tx);padding:8px 12px;font-size:13px;outline:none;transition:border-color .2s;font-family:'DM Sans',sans-serif}
+.cfg-input:focus{border-color:var(--mg)}
+.cfg-input::placeholder{color:var(--mu)}
+.cfg-select{width:100%;background:var(--nv3);border:1px solid var(--bd);border-radius:8px;color:var(--tx);padding:8px 12px;font-size:12px;outline:none;cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .2s}
+.cfg-select:focus{border-color:var(--mg)}
+.cfg-select option{background:var(--nv3)}
+.cfg-atd-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-bottom:20px}
+.atd-card{background:rgba(255,255,255,.03);border:1px solid var(--bd);border-radius:var(--r);padding:16px;transition:border-color .2s}
+.atd-card:hover{border-color:var(--bd2)}
+.atd-top{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.atd-av{width:52px;height:52px;border-radius:50%;flex-shrink:0;background:linear-gradient(135deg,var(--nv4),var(--nv5));display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:17px;border:2px solid var(--bd);overflow:hidden;cursor:pointer;transition:border-color .2s;position:relative}
+.atd-av:hover{border-color:var(--mg)}
+.atd-av img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.atd-name{font-size:14px;font-weight:700;margin-bottom:2px}
+.atd-role{font-size:11px;color:var(--mu)}
+.atd-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.atd-field label{font-size:10px;color:var(--mu);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px}
+.atd-field input,.atd-field select{width:100%;background:rgba(255,255,255,.04);border:1px solid var(--bd);border-radius:7px;color:var(--tx);padding:6px 10px;font-size:12px;outline:none;transition:border-color .2s;font-family:'DM Sans',sans-serif}
+.atd-field input:focus,.atd-field select:focus{border-color:var(--mg)}
+.atd-field select{background:var(--nv3);cursor:pointer}
+.atd-field select option{background:var(--nv3)}
+.atd-foto-btn{width:100%;margin-top:10px;padding:6px 0;border-radius:7px;border:1px dashed var(--bd);background:transparent;color:var(--mu);font-size:11px;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:6px}
+.atd-foto-btn:hover{border-color:var(--mg);color:var(--mg);background:var(--mg-dim)}
+.coord-card{background:rgba(232,0,125,.06);border:1px solid var(--bd2);border-radius:var(--r);padding:18px;margin-bottom:20px}
+.coord-header{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.coord-av{width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,var(--mg),#9400D4);display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:900;font-size:18px;color:#fff;box-shadow:var(--mg-glow)}
+.coord-title{font-family:'Syne',sans-serif;font-size:14px;font-weight:700}
+.coord-sub{font-size:11px;color:var(--mu);margin-top:2px}
+.coord-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.cfg-btn-row{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap}
+.btn-save{padding:9px 20px;border-radius:9px;border:none;background:var(--mg);color:#fff;font-size:13px;font-weight:600;cursor:pointer;transition:background .2s;display:flex;align-items:center;gap:6px}
+.btn-save:hover{background:var(--mg-h)}
+.btn-reset{padding:9px 16px;border-radius:9px;border:1px solid var(--bd);background:transparent;color:var(--mu);font-size:13px;cursor:pointer;transition:all .2s}
+.btn-reset:hover{border-color:var(--red);color:var(--red)}
+.btn-clear-csv{padding:9px 16px;border-radius:9px;border:1px solid rgba(255,85,114,.3);background:rgba(255,85,114,.06);color:var(--red);font-size:13px;cursor:pointer;transition:all .2s}
+.btn-clear-csv:hover{background:var(--rd);border-color:var(--red)}
+.ms{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:18px}
+.mb{padding:5px 14px;border-radius:20px;font-size:12px;font-weight:500;border:1px solid var(--bd);background:transparent;color:var(--mu);cursor:pointer;transition:all .18s}
+.mb:hover{border-color:var(--mg);color:var(--tx)}.mb.on{background:var(--mg);border-color:var(--mg);color:#fff}
+.mt-wrap{overflow-x:auto}
+.mt{width:100%;border-collapse:collapse;min-width:700px}
+.mt th{font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.4px;padding:8px 11px;border-bottom:1px solid var(--bd);text-align:center;white-space:nowrap}
+.mt th:first-child{text-align:left}
+.mt td{padding:9px 11px;font-size:12px;text-align:center;border-bottom:1px solid rgba(255,255,255,.04)}
+.mt td:first-child{text-align:left;font-weight:600;font-size:13px}
+.mt tbody tr:hover td{background:rgba(232,0,125,.03)}
+.mdot{width:11px;height:11px;border-radius:50%;display:inline-block}
+.frow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:18px}
+.f-sel{background:rgba(255,255,255,.05);border:1px solid var(--bd);border-radius:8px;color:var(--tx);padding:6px 12px;font-size:12px;outline:none;cursor:pointer;transition:border-color .2s;font-family:'DM Sans',sans-serif}
+.f-sel:focus{border-color:var(--mg)}.f-sel option{background:var(--nv3)}
+::-webkit-scrollbar{width:5px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.09);border-radius:99px}
+.empty{text-align:center;padding:48px 20px;color:var(--mu)}.empty-i{font-size:38px;margin-bottom:10px}
+#toast{position:fixed;bottom:24px;right:24px;z-index:9998;background:var(--nv3);border:1px solid var(--bd);border-radius:10px;padding:12px 18px;font-size:13px;color:var(--tx);box-shadow:var(--sh);opacity:0;transform:translateY(10px);transition:all .3s;pointer-events:none;max-width:340px}
+#toast.show{opacity:1;transform:none}
+#toast.ok{border-color:rgba(0,223,162,.3)}
+#toast.err{border-color:rgba(255,85,114,.3)}
+
+/* META vs REALIZADO badge in ranking */
+.meta-badge{display:flex;flex-direction:column;gap:2px;font-size:10px}
+.meta-badge-real{color:var(--tx);font-weight:700}
+.meta-badge-meta{color:var(--mu)}
+.meta-badge-sem{color:var(--tx2)}
+
+@media(max-width:900px){
+  .page{padding:14px}
+  .header,.nav,.upload-zone{padding-left:14px;padding-right:14px}
+  .cr2,.cr3{grid-template-columns:1fr}
+  .h-clk{display:none}
+}
+@media(max-width:540px){.kc-val{font-size:22px}.hr{gap:7px}}
+@media(min-width:1800px){.page{padding:28px 44px}.kc-val{font-size:32px}html{font-size:16px}}
+</style>
+</head>
+<body>
+
+<div id="splash">
+  <div class="sp-logo">pró<em>X</em>ima <span style="font-weight:400;font-size:26px;color:var(--tx2)">Telecom</span></div>
+  <div class="sp-track"><div class="sp-bar" id="spBar"></div></div>
+  <div class="sp-txt" id="spMsg">Inicializando BI Jacobina v9...</div>
+</div>
+<div id="toast"></div>
+
+<header class="header">
+  <div class="hb">
+    <div class="hb-px">PX</div>
+    <div>
+      <div class="hb-title">BI Comercial · Jacobina</div>
+      <div class="hb-sub">Próxima Telecom · Sistema v9</div>
+    </div>
+  </div>
+  <div class="hr">
+    <div class="h-live"><div class="h-dot"></div><span>AO VIVO</span></div>
+    <span class="h-clk" id="hClk">--:--:--</span>
+    <button class="h-btn" id="hRefresh" onclick="doRefresh()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+      Atualizar
+    </button>
+  </div>
+</header>
+
+<!-- UPLOAD ZONE — suporta CSV e XLSX -->
+<div class="upload-zone" id="dropZone" onclick="document.getElementById('csvInput').click()">
+  <input type="file" id="csvInput" accept=".csv,.xlsx,.xls" multiple onchange="handleFiles(this.files)">
+  <div class="uz-icon">📂</div>
+  <div class="uz-text">
+    <p>Arraste o arquivo "Quantidade de Vendas Diretas" (.csv ou .xlsx) aqui</p>
+    <span>Colunas: Nome Colaborador · R$ Vendas · Estágio Contrato Proxxima · Date (Data Venda Contrato Proxxima) · Soma TODAS as linhas com R$ Vendas (sem filtro de unidade)</span>
+  </div>
+  <div class="uz-status" id="uzSt">Aguardando arquivo...</div>
+  <button class="uz-btn" onclick="event.stopPropagation();document.getElementById('csvInput').click()">Selecionar arquivo</button>
+</div>
+
+<nav class="nav">
+  <div class="nav-tab on"  onclick="goTab(this,'visao')">📈 Visão Geral</div>
+  <div class="nav-tab"     onclick="goTab(this,'ranking')">🏆 Ranking & Pódio</div>
+  <div class="nav-tab"     onclick="goTab(this,'semanal')">📅 Semanal</div>
+  <div class="nav-tab"     onclick="goTab(this,'historico')">🗓️ Histórico</div>
+  <div class="nav-tab"     onclick="goTab(this,'insights')">💡 Insights & Recordes</div>
+  <div class="nav-tab"     onclick="goTab(this,'qualidade')">⚠️ Métricas de Qualidade</div>
+  <div class="nav-tab"     onclick="goTab(this,'config')">⚙️ Configurações</div>
+</nav>
+
+<main class="page">
+
+<!-- VISÃO GERAL -->
+<section id="tab-visao" class="tab on">
+  <div class="kpi-row" id="kpiRow">
+    <div class="gc kc" style="--ka:var(--mg);--ko:var(--mg-dim)">
+      <div class="kc-bar"></div><div class="kc-orb"></div>
+      <div class="kc-label">Total Vendido</div>
+      <div class="kc-val" id="kTotal">—</div>
+      <div class="kc-sub" id="kTotalSub">—</div>
+    </div>
+    <div class="gc kc" style="--ka:#4A78FF;--ko:rgba(74,120,255,.12)">
+      <div class="kc-bar"></div><div class="kc-orb"></div>
+      <div class="kc-label">Meta Total</div>
+      <div class="kc-val" id="kMeta">—</div>
+      <div class="kc-sub" id="kMetaSub">Soma das metas individuais</div>
+    </div>
+    <div class="gc kc" style="--ka:var(--yel);--ko:var(--yd)">
+      <div class="kc-bar"></div><div class="kc-orb"></div>
+      <div class="kc-label">% Atingimento</div>
+      <div class="kc-val" id="kPct">—</div>
+      <div id="kPctChip"></div>
+      <div class="kc-sub" id="kPctSub">—</div>
+    </div>
+    <div class="gc kc" style="--ka:var(--green);--ko:var(--gd)">
+      <div class="kc-bar"></div><div class="kc-orb"></div>
+      <div class="kc-label">Qtd. Vendas</div>
+      <div class="kc-val" id="kQtd">—</div>
+      <div class="kc-sub" id="kQtdSub">Ticket médio</div>
+    </div>
+    <div class="gc kc" style="--ka:var(--mg);--ko:var(--mg-dim)">
+      <div class="kc-bar"></div><div class="kc-orb"></div>
+      <div class="kc-label">🥇 Líder do Mês</div>
+      <div class="kc-val" id="kLider" style="font-size:16px;line-height:1.4">—</div>
+      <div class="kc-sub" id="kLiderSub"></div>
+    </div>
+    <div class="gc kc" style="--ka:#4A78FF;--ko:rgba(74,120,255,.12)">
+      <div class="kc-bar"></div><div class="kc-orb"></div>
+      <div class="kc-label">Ativas / Total</div>
+      <div class="kc-val" id="kAtiv">—</div>
+      <div class="kc-sub" id="kAtivSub"></div>
+    </div>
+    <div class="gc kc" style="--ka:var(--red);--ko:var(--rd)">
+      <div class="kc-bar"></div><div class="kc-orb"></div>
+      <div class="kc-label">⚠️ Perdas (Cancel+Rejeit)</div>
+      <div class="kc-val" id="kLoss" style="font-size:22px">—</div>
+      <div class="kc-sub" id="kLossSub">—</div>
+    </div>
+  </div>
+  <div class="cr2">
+    <div class="gc cc">
+      <div class="sh">📊 Realizado vs Meta — Semanal</div>
+      <div class="cw h240"><canvas id="cSem"></canvas></div>
+    </div>
+    <div class="gc cc">
+      <div class="sh">🎯 % Atingimento por Atendente</div>
+      <div class="cw h240"><canvas id="cAting"></canvas></div>
+    </div>
+  </div>
+  <div class="gc cc" style="margin-bottom:18px">
+    <div class="sh" style="margin-bottom:12px">
+      💰 Receita & Qtd por Colaboradora
+      <select class="f-sel" id="visaoFilter" onchange="renderVisaoChart()" style="margin-left:auto;font-size:11px">
+        <option value="receita">Receita (R$)</option>
+        <option value="qtd">Quantidade</option>
+      </select>
+    </div>
+    <div class="cw h280"><canvas id="cVendas"></canvas></div>
+  </div>
+</section>
+
+<!-- RANKING & PÓDIO -->
+<section id="tab-ranking" class="tab">
+  <div class="sh">🏆 Pódio — Top 3</div>
+  <div class="gc" id="podioWrap" style="margin-bottom:20px;padding-bottom:0;overflow:hidden">
+    <div class="podio-scene" id="podioScene"></div>
+  </div>
+  <div class="gc" style="padding:18px">
+    <div class="sh">
+      📋 Ranking Completo — Meta × Realizado × Perdas
+      <select class="f-sel" id="rankFilter" onchange="renderRanking()" style="margin-left:auto;font-size:11px">
+        <option value="receita">Ordenar: Receita</option>
+        <option value="qtd">Ordenar: Quantidade</option>
+        <option value="pct">Ordenar: % Meta</option>
+      </select>
+    </div>
+    <div class="rt-wrap">
+      <table class="rt">
+        <thead>
+          <tr>
+            <th>Pos</th><th>Colaboradora</th>
+            <th>S1</th><th>S2</th><th>S3</th><th>S4</th>
+            <th>Total R$</th><th>Qtd</th>
+            <th>Meta Mensal</th><th>Meta Semanal</th>
+            <th>% Meta</th><th>Perdas ⚠️</th>
+            <th>Progresso</th><th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="rtBody"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- SEMANAL -->
+<section id="tab-semanal" class="tab">
+  <div class="sh">📅 Acompanhamento Semanal — <span id="semanalMesLabel">Aguardando dados</span></div>
+  <div class="wk-grid" id="wkGrid"></div>
+  <div class="gc cc">
+    <div class="sh">📈 Evolução — Realizado × Meta</div>
+    <div class="cw h240"><canvas id="cEvolucao"></canvas></div>
+  </div>
+  <div class="gc cc" style="margin-top:14px">
+    <div class="sh">👥 Desempenho Individual por Semana (Top 5)</div>
+    <div class="cw h280"><canvas id="cIndiv"></canvas></div>
+  </div>
+</section>
+
+<!-- HISTÓRICO -->
+<section id="tab-historico" class="tab">
+  <div class="sh">🗓️ Histórico Mensal</div>
+  <div class="ms" id="monthSel"></div>
+  <div class="gc" style="padding:18px;margin-bottom:16px">
+    <div class="sh">📋 Detalhe — <span id="mLabel" style="color:var(--mg)">—</span></div>
+    <div class="mt-wrap"><table class="mt"><thead><tr id="mHead"></tr></thead><tbody id="mBody"></tbody></table></div>
+  </div>
+  <div class="gc cc">
+    <div class="sh">📈 Evolução Histórica Top 5</div>
+    <div class="cw h280"><canvas id="cHist"></canvas></div>
+  </div>
+</section>
+
+<!-- INSIGHTS & RECORDES -->
+<section id="tab-insights" class="tab">
+  <div class="sh">🧠 Métricas Estratégicas</div>
+  <div class="im-grid" id="imGrid">
+    <div class="gc im"><div class="im-label">Gap para a Meta</div><div class="im-val" id="iGap">—</div><div class="im-sub" id="iGapSub">Valor que falta para 100%</div></div>
+    <div class="gc im"><div class="im-label">Ticket Médio</div><div class="im-val" id="iTicket">—</div><div class="im-sub">Por venda realizada</div></div>
+    <div class="gc im"><div class="im-label">Taxa de Perda (Funil)</div><div class="im-val" id="iLossRate" style="color:var(--red)">—</div><div class="im-sub" id="iLossRateSub">Cancel + Rejeitados / Total</div></div>
+    <div class="gc im"><div class="im-label">Receita Total (R$)</div><div class="im-val" id="iReceita">—</div><div class="im-sub" id="iReceitaSub">Soma de todas as semanas</div></div>
+    <div class="gc im"><div class="im-label">Total de Vendas (Qtd)</div><div class="im-val" id="iQtdTotal">—</div><div class="im-sub" id="iQtdSub">Contratos fechados</div></div>
+    <div class="gc im"><div class="im-label">Melhor Semana</div><div class="im-val" id="iBestSem">—</div><div class="im-sub" id="iBestSemSub">Maior volume no período</div></div>
+  </div>
+
+  <!-- RECORDES -->
+  <div class="sh">🏅 Recordes do Período</div>
+  <div class="rec-grid" id="recGrid">
+    <div class="gc rec best"><div class="rec-ico">📅✅</div><div class="rec-label">Melhor Dia de Vendas</div><div class="rec-val" id="rBestDay">—</div><div class="rec-sub" id="rBestDaySub">—</div></div>
+    <div class="gc rec worst"><div class="rec-ico">📅❌</div><div class="rec-label">Pior Dia de Vendas</div><div class="rec-val" id="rWorstDay">—</div><div class="rec-sub" id="rWorstDaySub">—</div></div>
+    <div class="gc rec best"><div class="rec-ico">📆✅</div><div class="rec-label">Melhor Semana do Mês</div><div class="rec-val" id="rBestWeek">—</div><div class="rec-sub" id="rBestWeekSub">—</div></div>
+    <div class="gc rec worst"><div class="rec-ico">📆❌</div><div class="rec-label">Pior Semana do Mês</div><div class="rec-val" id="rWorstWeek">—</div><div class="rec-sub" id="rWorstWeekSub">—</div></div>
+    <div class="gc rec gold"><div class="rec-ico">🥇💰</div><div class="rec-label">Melhor Atendente (Faturamento)</div><div class="rec-val" id="rBestAtn">—</div><div class="rec-sub" id="rBestAtnSub">—</div></div>
+    <div class="gc rec worst"><div class="rec-ico">📉💰</div><div class="rec-label">Pior Atendente (Faturamento)</div><div class="rec-val" id="rWorstAtn">—</div><div class="rec-sub" id="rWorstAtnSub">—</div></div>
+    <div class="gc rec gold"><div class="rec-ico">🥇🎯</div><div class="rec-label">Melhor Atendente (Conversão %)</div><div class="rec-val" id="rBestConv">—</div><div class="rec-sub" id="rBestConvSub">—</div></div>
+    <div class="gc rec worst"><div class="rec-ico">📉🎯</div><div class="rec-label">Pior Atendente (Conversão %)</div><div class="rec-val" id="rWorstConv">—</div><div class="rec-sub" id="rWorstConvSub">—</div></div>
+  </div>
+
+  <div class="sh">🎯 Análise por Desempenho</div>
+  <div class="ins-grid" id="insGrid"></div>
+
+  <div class="cr2">
+    <div class="gc cc"><div class="sh">💰 Receita por Atendente (R$)</div><div class="cw h240"><canvas id="cInsReceita"></canvas></div></div>
+    <div class="gc cc"><div class="sh">🔢 Quantidade por Atendente</div><div class="cw h240"><canvas id="cInsQtd"></canvas></div></div>
+  </div>
+  <div class="cr2">
+    <div class="gc cc"><div class="sh">💰 Ticket Médio por Atendente</div><div class="cw h240"><canvas id="cTicket"></canvas></div></div>
+    <div class="gc cc"><div class="sh">📊 Frequência de Metas Semanais Batidas</div><div class="cw h240"><canvas id="cFreq"></canvas></div></div>
+  </div>
+</section>
+
+<!-- MÉTRICAS DE QUALIDADE (substituiu aba irrelevante) -->
+<section id="tab-qualidade" class="tab">
+  <div class="sh">⚠️ Funil de Perdas — Contratos Cancelados & Rejeitados</div>
+
+  <div class="qm-grid" id="qmGrid">
+    <div class="gc qm"><div class="qm-label">Total Contratos</div><div class="qm-val" id="qTotal" style="color:var(--tx)">—</div><div class="qm-sub">Todos os registros importados</div></div>
+    <div class="gc qm"><div class="qm-label">✅ Aprovados</div><div class="qm-val" id="qAprov" style="color:var(--green)">—</div><div class="qm-sub" id="qAprovSub">—</div></div>
+    <div class="gc qm"><div class="qm-label">⏳ Em Aprovação</div><div class="qm-val" id="qPend" style="color:var(--yel)">—</div><div class="qm-sub" id="qPendSub">—</div></div>
+    <div class="gc qm"><div class="qm-label">❌ Cancelados</div><div class="qm-val" id="qCancel" style="color:var(--red)">—</div><div class="qm-sub" id="qCancelSub">—</div></div>
+    <div class="gc qm"><div class="qm-label">🚫 Rejeitados</div><div class="qm-val" id="qRejeit" style="color:var(--red)">—</div><div class="qm-sub" id="qRejeitSub">—</div></div>
+    <div class="gc qm"><div class="qm-label">📉 Taxa de Perda Total</div><div class="qm-val" id="qLossPct" style="color:var(--red)">—</div><div class="qm-sub" id="qLossSub">Cancel + Rejeit / Total</div></div>
+  </div>
+
+  <div class="cr2" style="margin-bottom:18px">
+    <div class="gc cc"><div class="sh">📊 Distribuição por Estágio</div><div class="cw h280"><canvas id="cEstagio"></canvas></div></div>
+    <div class="gc cc"><div class="sh">⚠️ Perdas por Semana</div><div class="cw h280"><canvas id="cLossSem"></canvas></div></div>
+  </div>
+
+  <div class="sh">📋 Perdas por Atendente — Semana & Mês</div>
+  <div class="gc" style="padding:18px;margin-bottom:18px">
+    <div class="rt-wrap">
+      <table class="loss-table">
+        <thead>
+          <tr>
+            <th>Colaboradora</th>
+            <th>Total Contratos</th>
+            <th>Cancelados (Sem)</th>
+            <th>Cancelados (Mês)</th>
+            <th>Rejeitados (Sem)</th>
+            <th>Rejeitados (Mês)</th>
+            <th>Taxa Perda %</th>
+            <th>Alerta</th>
+          </tr>
+        </thead>
+        <tbody id="lossBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="sh">📋 Detalhe dos Contratos Perdidos</div>
+  <div class="gc" style="padding:18px">
+    <div class="rt-wrap">
+      <table class="loss-table">
+        <thead>
+          <tr><th>Data</th><th>Colaboradora</th><th>Estágio</th><th>R$ Vendas</th><th>Semana</th></tr>
+        </thead>
+        <tbody id="lossDetail"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- CONFIGURAÇÕES -->
+<section id="tab-config" class="tab">
+  <div class="sh">⚙️ Gestão do Time & Metas</div>
+  <div class="coord-card gc">
+    <div class="coord-header">
+      <div class="coord-av">C</div>
+      <div>
+        <div class="coord-title">Coordenação Geral — Jacobina</div>
+        <div class="coord-sub">Metas da unidade e configurações globais</div>
+      </div>
+    </div>
+    <div class="coord-fields">
+      <div><div class="cfg-label">Meta Mensal Coordenador (R$)</div><input class="cfg-input" id="cfgMetaCoord" type="number" placeholder="3000"></div>
+      <div><div class="cfg-label">Meta Semanal Coordenador (R$)</div><input class="cfg-input" id="cfgMetaCoordSem" type="number" placeholder="750"></div>
+      <div><div class="cfg-label">Meta Individual Padrão (R$)</div><input class="cfg-input" id="cfgMetaInd" type="number" placeholder="1362"></div>
+      <div><div class="cfg-label">Meta do Time Total (R$)</div><input class="cfg-input" id="cfgMetaTime" type="number" placeholder="15000"></div>
+      <div><div class="cfg-label">Unidade (filtro CSV)</div><input class="cfg-input" id="cfgUnidade" type="text" placeholder="JACOBINA"></div>
+    </div>
+  </div>
+
+  <div class="sh">📅 Metas & Períodos das Semanas</div>
+  <div class="gc cfg-card" style="margin-bottom:20px"><div id="cfgSemanas"></div></div>
+
+  <div class="sh">🗂️ Mapeamento de Colunas CSV</div>
+  <div class="cfg-grid" style="margin-bottom:20px">
+    <div class="gc cfg-card">
+      <div class="cfg-title">Colunas do Arquivo</div>
+      <div class="cfg-row"><div class="cfg-label">Coluna Nome Colaborador</div><input class="cfg-input" id="cfgColNome" type="text" placeholder="Nome Colaborador"></div>
+      <div class="cfg-row"><div class="cfg-label">Coluna Unidade</div><input class="cfg-input" id="cfgColUnidade" type="text" placeholder="Unidade Ajustado ||"></div>
+      <div class="cfg-row"><div class="cfg-label">Coluna Receita</div><input class="cfg-input" id="cfgColReceita" type="text" placeholder="R$ Vendas"></div>
+      <div class="cfg-row"><div class="cfg-label">Coluna Estágio</div><input class="cfg-input" id="cfgColEstagio" type="text" placeholder="Estágio Contrato Proxxima"></div>
+      <div class="cfg-row"><div class="cfg-label">Coluna Data</div><input class="cfg-input" id="cfgColData" type="text" placeholder="Date (Data Venda Contrato Proxxima)"></div>
+    </div>
+  </div>
+
+  <div class="sh">👤 Metas Individuais, Status & Fotos</div>
+  <div class="cfg-atd-grid" id="atdGrid"></div>
+
+  <div class="sh" style="margin-top:24px">🌐 Publicar Dashboard Online (Google Sites / GitHub)</div>
+  <div class="gc cfg-card" style="margin-bottom:20px;border-left:3px solid var(--green)">
+    <div class="cfg-title" style="color:var(--green)">📡 Como deixar o dashboard acessível para toda a equipe</div>
+    <p style="color:var(--tx2);font-size:12px;line-height:1.7;margin-bottom:14px">
+      O dashboard é um arquivo <b>index.html único</b> — para publicá-lo sem servidor:
+    </p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+      <div style="background:rgba(0,223,162,.07);border:1px solid rgba(0,223,162,.2);border-radius:10px;padding:14px">
+        <div style="font-weight:700;font-size:12px;color:var(--green);margin-bottom:8px">🐙 GitHub Pages (recomendado, grátis)</div>
+        <ol style="color:var(--tx2);font-size:11px;line-height:1.8;padding-left:16px;margin:0">
+          <li>Crie uma conta em <b>github.com</b></li>
+          <li>Crie um repositório público (ex: <em>dashboard-proxima</em>)</li>
+          <li>Faça upload do <b>index.html</b></li>
+          <li>Vá em <b>Settings → Pages → Source: main / root</b></li>
+          <li>URL gerada: <em>seuuser.github.io/dashboard-proxima</em></li>
+          <li>Para atualizar: substitua o index.html e aguarde ~1min</li>
+        </ol>
+      </div>
+      <div style="background:rgba(74,120,255,.07);border:1px solid rgba(74,120,255,.2);border-radius:10px;padding:14px">
+        <div style="font-weight:700;font-size:12px;color:#4A78FF;margin-bottom:8px">📋 Google Sites com iframe</div>
+        <ol style="color:var(--tx2);font-size:11px;line-height:1.8;padding-left:16px;margin:0">
+          <li>Publique o HTML no GitHub Pages (passo ao lado)</li>
+          <li>No Google Sites, adicione bloco <b>"Incorporar"</b></li>
+          <li>Cole a URL do GitHub Pages</li>
+          <li>O dashboard aparece embutido no site</li>
+          <li>Quando você atualizar o index.html no GitHub, o Google Sites reflete automaticamente</li>
+        </ol>
+      </div>
+    </div>
+    <div style="background:rgba(232,0,125,.07);border:1px solid var(--bd2);border-radius:10px;padding:12px;margin-bottom:10px">
+      <div style="font-weight:700;font-size:12px;color:var(--mg);margin-bottom:6px">🔄 Fluxo para atualizar os dados sem que a equipe precise fazer nada</div>
+      <p style="color:var(--tx2);font-size:11px;line-height:1.7;margin:0">
+        <b>1.</b> Você importa o .xlsx novo aqui no dashboard → <b>2.</b> Clica em <b>"☁️ Exportar p/ Nuvem"</b> → 
+        <b>3.</b> Cola o JSON num <b>GitHub Gist público</b> → <b>4.</b> Salva a URL raw nas configurações acima → 
+        <b>5.</b> Qualquer pessoa que abrir o link verá os dados atualizados automaticamente (Auto-Load).
+      </p>
+    </div>
+    <button class="btn-save" style="background:var(--green);color:#0B1229" onclick="downloadFinalHtml()">⬇️ Baixar index.html pronto para publicar</button>
+  </div>
+
+  <div class="sh" style="margin-top:24px">☁️ Sincronização Online (Link Remoto)</div>
+  <p style="color:var(--tx2);font-size:12px;margin:6px 0 12px 0;line-height:1.5">
+    Para que <b>qualquer pessoa com o link do dashboard</b> veja seus dados atualizados sem precisar importar arquivos:
+    <br>1) Clique em <b>Exportar p/ Nuvem</b> e copie o JSON gerado.
+    2) Hospede em um <b>GitHub Gist</b> (raw URL), <b>Dropbox</b> (link direto) ou similar.
+    3) Cole a URL pública abaixo e clique em <b>Salvar URL</b>. Pronto — todos verão os dados ao abrir o dashboard.
+  </p>
+  <div class="cfg-row" style="grid-template-columns:1fr auto auto;display:grid;gap:8px;align-items:end;margin-bottom:10px">
+    <div><div class="cfg-label">URL pública do JSON (raw)</div><input class="cfg-input" id="cfgRemoteUrl" type="url" placeholder="https://gist.githubusercontent.com/.../raw/dados.json"></div>
+    <button class="btn-save" style="background:#4A78FF;height:38px" onclick="saveRemoteUrl()">💾 Salvar URL</button>
+    <button class="btn-save" style="background:#00DFA2;color:#0B1229;height:38px" onclick="loadFromRemoteUrl(true)">🔄 Carregar Agora</button>
+  </div>
+  <div id="remoteStatus" style="font-size:12px;color:var(--tx2);margin-bottom:14px">—</div>
+
+  <div class="sh" style="margin-top:24px">🔄 Compartilhar Dashboard (Backup Local)</div>
+  <p style="color:var(--tx2);font-size:12px;margin:6px 0 12px 0;line-height:1.5">
+    Use <b>Exportar Backup</b> para gerar um arquivo <code>.json</code> com TODOS os dados
+    (metas, fotos, status, importações, semanas, histórico). Quem receber o arquivo pode usar
+    <b>Importar Backup</b> para ver exatamente o mesmo dashboard que você — ideal para compartilhar via WhatsApp/Drive.
+  </p>
+  <div class="cfg-btn-row" style="margin-top:0">
+    <button class="btn-save" style="background:#4A78FF" onclick="exportBackup()">⬇️ Exportar Backup (.json)</button>
+    <button class="btn-save" style="background:#00DFA2;color:#0B1229" onclick="document.getElementById('backupInput').click()">⬆️ Importar Backup (.json)</button>
+    <button class="btn-save" style="background:#7A5BFF" onclick="exportBackupForCloud()">☁️ Exportar p/ Nuvem (copiar)</button>
+    <input type="file" id="backupInput" accept=".json,application/json" style="display:none" onchange="importBackup(this.files[0])">
+  </div>
+
+  <div class="cfg-btn-row">
+    <button class="btn-save" onclick="saveConfig()">💾 Salvar Todas as Configurações</button>
+    <button class="btn-clear-csv" onclick="clearCsvData()">🗑️ Limpar Dados CSV</button>
+    <button class="btn-reset" onclick="resetConfig()">↺ Restaurar Padrão</button>
+  </div>
+</section>
+
+</main>
+
+<script>
+/* ═════════════════════════════════════════════
+   PRÓXIMA TELECOM · BI COMERCIAL v7 · Jacobina
+   v7: Motor 100% (todos os estágios exceto CANCELADO contam)
+       Auto-detecção do mês ativo a partir das datas
+       Semanas seg→dom calculadas automaticamente
+       Janeiro/Fevereiro/Março limpos (prontos p/ import)
+       Backup .json para compartilhar dashboard via link
+       Tags ⚠️ dinâmicas de atenção (canc + rejeit)
+═════════════════════════════════════════════ */
+
+const STORAGE_KEY = 'dash_settings_v8';
+
+/* ──────────── BASE MESTRA ──────────── */
+const BASE_MESTRA = [
+  { name:'SAMILA VIEIRA DE SOUZA LIMA',           s1:0,s2:0,s3:0,s4:0, metaInd:1362, metaSem:340, status:'Ativa', qtd:[0,0,0,0], losses:{cancel:[0,0,0,0],reject:[0,0,0,0]} },
+  { name:'ADRIELLE DOS SANTOS MAIA',              s1:0,s2:0,s3:0,s4:0, metaInd:1362, metaSem:340, status:'Ativa', qtd:[0,0,0,0], losses:{cancel:[0,0,0,0],reject:[0,0,0,0]} },
+  { name:'REBECA BRUNA CARVALHO DE SOUZA',        s1:0,s2:0,s3:0,s4:0, metaInd:1362, metaSem:340, status:'Ativa', qtd:[0,0,0,0], losses:{cancel:[0,0,0,0],reject:[0,0,0,0]} },
+  { name:'VANESSA SOARES SOUSA',                  s1:0,s2:0,s3:0,s4:0, metaInd:1362, metaSem:340, status:'Ativa', qtd:[0,0,0,0], losses:{cancel:[0,0,0,0],reject:[0,0,0,0]} },
+  { name:'CLAUDIA MOREIRA BISPO',                 s1:0,s2:0,s3:0,s4:0, metaInd:1362, metaSem:340, status:'Ativa', qtd:[0,0,0,0], losses:{cancel:[0,0,0,0],reject:[0,0,0,0]} },
+  { name:'GABRIELA ARAUJO SANTOS OLIVEIRA',       s1:0,s2:0,s3:0,s4:0, metaInd:1362, metaSem:340, status:'Ativa', qtd:[0,0,0,0], losses:{cancel:[0,0,0,0],reject:[0,0,0,0]} },
+  { name:'VITORIA KAROLYNE PEREIRA DE JESUS',     s1:0,s2:0,s3:0,s4:0, metaInd:1362, metaSem:340, status:'Ativa', qtd:[0,0,0,0], losses:{cancel:[0,0,0,0],reject:[0,0,0,0]} },
+  { name:'MIKELLE SANTOS ARAUJO DE OLIVEIRA',     s1:0,s2:0,s3:0,s4:0, metaInd:1362, metaSem:340, status:'Ativa', qtd:[0,0,0,0], losses:{cancel:[0,0,0,0],reject:[0,0,0,0]} },
+  { name:'ADLA MILLENA GOMES BRANDAO',            s1:0,s2:0,s3:0,s4:0, metaInd:1362, metaSem:340, status:'Ativa', qtd:[0,0,0,0], losses:{cancel:[0,0,0,0],reject:[0,0,0,0]} },
+  { name:'HELOISA DA SILVA COELHO VIEIRA',        s1:0,s2:0,s3:0,s4:0, metaInd:1362, metaSem:340, status:'Ativa', qtd:[0,0,0,0], losses:{cancel:[0,0,0,0],reject:[0,0,0,0]} },
+  { name:'LUANA GOMES DA SILVA',                  s1:0,s2:0,s3:0,s4:0, metaInd:1362, metaSem:340, status:'Ativa', qtd:[0,0,0,0], losses:{cancel:[0,0,0,0],reject:[0,0,0,0]} },
+  { name:'BRUNA EMILE SANTOS SENA',               s1:0,s2:0,s3:0,s4:0, metaInd:0,    metaSem:0,   status:'Férias', qtd:[0,0,0,0], losses:{cancel:[0,0,0,0],reject:[0,0,0,0]} },
+];
+
+/* SEMANAS_BASE: agora começa genérico — é REGENERADO automaticamente
+   pela função rebuildSemanasFromMonth() ao importar um arquivo,
+   detectando o mês a partir das datas e criando 4-6 semanas seg→dom. */
+let SEMANAS_BASE = buildEmptySemanas('Aguardando importação');
+
+/* HISTORICO inicia VAZIO — Jan/Fev/Mar prontos para receber importação do zero.
+   Quando você importar um CSV/XLSX, o sistema detecta o mês pela coluna
+   "Date (Data Venda Contrato Proxxima)" e popula a aba correta. */
+const HISTORICO = {
+  jan26:{ label:'Janeiro/26',  cols:['S1','S2','S3','S4'], rows:[] },
+  fev26:{ label:'Fevereiro/26',cols:['S1','S2','S3','S4'], rows:[] },
+  mar26:{ label:'Março/26',    cols:['S1','S2','S3','S4'], rows:[] },
+};
+
+function buildEmptySemanas(periodoTxt){
+  return [
+    { key:'s1', label:'Semana 1', periodo:periodoTxt||'—', metaEquipe:3750, metaSem:340 },
+    { key:'s2', label:'Semana 2', periodo:periodoTxt||'—', metaEquipe:3750, metaSem:340 },
+    { key:'s3', label:'Semana 3', periodo:periodoTxt||'—', metaEquipe:3750, metaSem:340 },
+    { key:'s4', label:'Semana 4', periodo:periodoTxt||'—', metaEquipe:3750, metaSem:340 },
+  ];
+}
+
+/* ──────────── STATE ──────────── */
+let DATA = JSON.parse(JSON.stringify(BASE_MESTRA));
+let RAW_ROWS = []; // todos os registros brutos do CSV/XLSX importado
+let CFG = {};
+let charts = {};
+let currentMonth = 'atual';   // 'atual' = mês detectado pela importação
+let activeMonthKey = null;    // ex: 'abr26', 'mar26' (set pelo parser)
+let activeMonthLabel = '—';   // ex: 'Abril/26'
+let confettiFired = false;
+
+const DEFAULT_CFG = {
+  metaInd:1362, metaTime:15000, metaCoord:3000, metaCoordSem:750,
+  unidade:'',
+  colNome:'Nome Colaborador',
+  colUnidade:'Unidade Ajustado ||',
+  colReceita:'R$ Vendas',
+  colEstagio:'Estágio Contrato Proxxima',
+  colData:'Date (Data Venda Contrato Proxxima)',
+  remoteUrl:'',
+  atendentes:{},
+};
+
+/* ──────────── HELPERS ──────────── */
+const brl  = n => 'R$ '+(n||0).toFixed(2).replace('.',',').replace(/\B(?=(\d{3})+(?!\d))/g,'.');
+const brlK = n => n>=1000?'R$ '+(n/1000).toFixed(1)+'k':'R$ '+(n||0).toFixed(0);
+const pct  = (a,b) => b>0?a/b:0;
+const fP   = (v,d=1) => v!==null&&v!==undefined?v.toFixed(d)+'%':'—';
+const pCol = p => p===null?'var(--mu)':p>=1?'var(--green)':p>=.7?'var(--yel)':'var(--red)';
+const ini  = n => { const w=(n||'?').trim().split(' '); return (w[0][0]+(w[1]?w[1][0]:'')).toUpperCase(); };
+const fName= n => { const w=(n||'').trim().split(' '); return w[0]; };
+const set$ = (id,v) => { const e=document.getElementById(id); if(e) e.textContent=v??'—'; };
+const setH = (id,v) => { const e=document.getElementById(id); if(e) e.innerHTML=v??''; };
+const chip = (t,c)  => `<span class="tag ${c}">${t}</span>`;
+const isActive = r => (r.status||'Ativa') === 'Ativa';
+
+const statusTag = (p, status) => {
+  if(status==='Férias')   return chip('🏖 Férias','t0');
+  if(status==='Atestado') return chip('🏥 Atestado','ta');
+  if(status==='Licença')  return chip('📋 Licença','tl');
+  if(p===null) return chip('—','t0');
+  if(p>=1)  return chip('✓ Meta','tg');
+  if(p>=.7) return chip('↗ Quase','ty');
+  return chip('✕ Abaixo','tr');
+};
+
+const sealHtml = status => {
+  if(status==='Férias')   return `<div class="status-seal seal-ferias" title="Férias">🏖</div>`;
+  if(status==='Atestado') return `<div class="status-seal seal-atestado" title="Atestado">🏥</div>`;
+  if(status==='Licença')  return `<div class="status-seal seal-licenca" title="Licença">📋</div>`;
+  return '';
+};
+
+function mkChart(id,cfg){
+  const el=document.getElementById(id);
+  if(!el)return;
+  if(charts[id]){charts[id].destroy();delete charts[id];}
+  charts[id]=new Chart(el,cfg);
+}
+const CD={
+  plugins:{legend:{labels:{color:'#637098',font:{size:11,family:"'DM Sans',sans-serif"},boxWidth:12}}},
+  scales:{
+    x:{ticks:{color:'#637098',font:{size:11}},grid:{color:'rgba(255,255,255,.04)'}},
+    y:{ticks:{color:'#637098',font:{size:11}},grid:{color:'rgba(255,255,255,.04)'}}
+  }
+};
+function toast(msg,type='ok'){
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.className='show '+(type==='ok'?'ok':'err');
+  setTimeout(()=>{el.className=''},3800);
+}
+
+/* ──────────── SAVE / LOAD ──────────── */
+function saveSettings(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      version:7, cfg:CFG, data:DATA, rawRows:RAW_ROWS, semanas:SEMANAS_BASE,
+      activeMonthKey, activeMonthLabel
+    }));
+  }catch(e){console.warn('[dash_settings_v7] save error',e);}
+}
+function loadSettings(){
+  try{
+    const raw=localStorage.getItem(STORAGE_KEY);
+    if(raw){
+      const p=JSON.parse(raw);
+      CFG={...DEFAULT_CFG,...(p.cfg||{})};
+      if(Array.isArray(p.data)&&p.data.length>0){
+        DATA=p.data;
+        DATA.forEach(r=>{
+          if(!r.losses) r.losses={cancel:[0,0,0,0,0,0],reject:[0,0,0,0,0,0]};
+          if(!r.qtd)    r.qtd=[0,0,0,0,0,0];
+          if(!r.metaSem) r.metaSem=340;
+          if(!r.status) r.status='Ativa';
+        });
+      } else { DATA=JSON.parse(JSON.stringify(BASE_MESTRA)); }
+      if(Array.isArray(p.rawRows)) RAW_ROWS=p.rawRows;
+      if(Array.isArray(p.semanas)&&p.semanas.length) SEMANAS_BASE=p.semanas;
+      if(p.activeMonthKey) activeMonthKey=p.activeMonthKey;
+      if(p.activeMonthLabel) activeMonthLabel=p.activeMonthLabel;
+    } else {
+      CFG={...DEFAULT_CFG};
+      DATA=JSON.parse(JSON.stringify(BASE_MESTRA));
+    }
+  }catch(e){
+    console.warn('[dash_settings_v7] load error',e);
+    CFG={...DEFAULT_CFG};
+    DATA=JSON.parse(JSON.stringify(BASE_MESTRA));
+  }
+}
+
+/* ──────────── COMPUTED ──────────── */
+function computeData(){
+  return DATA.map(r=>{
+    /* Soma TODAS as semanas dinâmicas de SEMANAS_BASE (até 6) */
+    const total=SEMANAS_BASE.reduce((s,sm)=>s+(r[sm.key]||0),0);
+    const totalQtd=(r.qtd||[]).reduce((a,b)=>a+(b||0),0);
+    const active=isActive(r);
+    const meta=r.metaInd??CFG.metaInd??1362;
+    const p=!active?null:(meta>0?total/meta:null);
+    const totalLoss=((r.losses?.cancel||[]).reduce((a,b)=>a+b,0))+((r.losses?.reject||[]).reduce((a,b)=>a+b,0));
+    return {...r,total,totalQtd,meta,pct:p,totalLoss};
+  }).sort((a,b)=>{
+    if(isActive(a)&&!isActive(b))return -1;
+    if(!isActive(a)&&isActive(b))return 1;
+    return (b.pct||0)-(a.pct||0);
+  });
+}
+
+function semanalTotals(){
+  const rows=computeData().filter(r=>isActive(r));
+  return SEMANAS_BASE.map((s,i)=>({
+    ...s,
+    real:rows.reduce((acc,r)=>acc+(r[s.key]||0),0),
+    qtd:rows.reduce((acc,r)=>acc+((r.qtd||[])[i]||0),0),
+    meta:s.metaEquipe,
+    cancelados:rows.reduce((acc,r)=>acc+((r.losses?.cancel||[])[i]||0),0),
+    rejeitados:rows.reduce((acc,r)=>acc+((r.losses?.reject||[])[i]||0),0),
+  }));
+}
+
+/* ──────────── RENDER ALL ──────────── */
+function renderAll(){
+  const d=computeData();
+  renderKPIs(d);
+  renderVisaoCharts(d);
+  renderRanking();
+  renderPodio(d);
+  renderSemanal();
+  renderHistorico();
+  renderInsights(d);
+  renderQualidade();
+  buildConfigUI(d);
+}
+
+/* ──────────── KPIs ──────────── */
+function renderKPIs(d){
+  const active=d.filter(r=>isActive(r));
+  const total=active.reduce((s,r)=>s+r.total,0);
+  const meta=active.reduce((s,r)=>s+r.meta,0);
+  const pctVal=pct(total,meta)*100;
+  const qtdTot=active.reduce((s,r)=>s+r.totalQtd,0);
+  const ticket=qtdTot>0?total/qtdTot:0;
+  const lider=d.find(r=>r.pct!==null);
+  const ausentes=d.filter(r=>!isActive(r));
+  const totalCancel=d.reduce((s,r)=>s+((r.losses?.cancel||[]).reduce((a,b)=>a+b,0)),0);
+  const totalReject=d.reduce((s,r)=>s+((r.losses?.reject||[]).reduce((a,b)=>a+b,0)),0);
+  const totalLoss=totalCancel+totalReject;
+
+  set$('kTotal',brl(total));
+  set$('kTotalSub',`${qtdTot} vendas no período`);
+  set$('kMeta',brl(meta));
+  set$('kMetaSub',`${active.length} atendentes ativas`);
+  set$('kPct',fP(pctVal));
+  set$('kQtd',qtdTot.toString());
+  set$('kQtdSub',`Ticket médio: ${brl(ticket)}`);
+  set$('kAtiv',`${active.length} / ${d.length}`);
+  set$('kAtivSub',ausentes.length?`${ausentes.length} afastada(s)`:'Todas ativas');
+  set$('kLoss',totalLoss>0?`${totalLoss} ⚠️`:'0');
+  set$('kLossSub',`${totalCancel} cancel · ${totalReject} rejeit`);
+
+  const pChip=document.getElementById('kPctChip');
+  if(pChip){
+    const c=pctVal>=100?'chip-g':pctVal>=70?'chip-y':'chip-r';
+    const t=pctVal>=100?'✓ Meta atingida':pctVal>=70?'↗ Em andamento':'↓ Atenção';
+    pChip.innerHTML=`<div class="kc-chip ${c}">${t}</div>`;
+  }
+  set$('kPctSub',pctVal>=100?'Parabéns — meta batida!':`Faltam ${brl(Math.max(0,meta-total))}`);
+  if(lider){
+    set$('kLider',fName(lider.name)+' '+lider.name.split(' ')[1]);
+    set$('kLiderSub',`${brl(lider.total)} · ${fP((lider.pct||0)*100)}`);
+  }
+}
+
+/* ──────────── CHARTS VISÃO ──────────── */
+function renderVisaoCharts(d){
+  const sems=semanalTotals();
+  const labels=sems.map(s=>s.label);
+  const reals=sems.map(s=>s.real);
+  const metas=sems.map(s=>s.meta);
+  const bCols=reals.map((r,i)=>{
+    if(!r)return 'rgba(255,85,114,.25)';
+    const p=metas[i]>0?r/metas[i]:0;
+    return p>=1?'rgba(0,223,162,.75)':p>=.7?'rgba(255,204,77,.75)':'rgba(255,85,114,.7)';
+  });
+  mkChart('cSem',{
+    type:'bar',data:{labels,datasets:[
+      {label:'Realizado',data:reals,backgroundColor:bCols,borderRadius:7,order:2},
+      {label:'Meta',data:metas,type:'line',borderColor:'rgba(232,0,125,.8)',borderWidth:2,pointBackgroundColor:'#E8007D',pointRadius:5,backgroundColor:'transparent',order:1}
+    ]},options:{...CD,responsive:true,maintainAspectRatio:false}
+  });
+  const active=d.filter(r=>r.pct!==null);
+  const shortN=active.map(r=>fName(r.name));
+  const atPcts=active.map(r=>+((r.pct||0)*100).toFixed(1));
+  const atCols=atPcts.map(p=>p>=100?'rgba(0,223,162,.8)':p>=70?'rgba(255,204,77,.8)':'rgba(255,85,114,.75)');
+  mkChart('cAting',{
+    type:'bar',data:{labels:shortN,datasets:[{label:'% Meta',data:atPcts,backgroundColor:atCols,borderRadius:5}]},
+    options:{...CD,indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      scales:{x:{...CD.scales.x,max:Math.max(130,Math.ceil(Math.max(...atPcts,0)/10)*10+10)},y:{...CD.scales.y}}}
+  });
+  renderVisaoChart();
+}
+function renderVisaoChart(){
+  const d=computeData().filter(r=>isActive(r));
+  const mode=document.getElementById('visaoFilter')?.value||'receita';
+  const labels=d.map(r=>fName(r.name));
+  const vals=mode==='receita'?d.map(r=>r.total):d.map(r=>r.totalQtd);
+  const metaV=mode==='receita'?d.map(r=>r.meta):d.map(r=>Math.round(r.meta/100));
+  mkChart('cVendas',{
+    type:'bar',data:{labels,datasets:[
+      {label:mode==='receita'?'Receita (R$)':'Quantidade',data:vals,backgroundColor:'rgba(232,0,125,.6)',borderColor:'#E8007D',borderWidth:1,borderRadius:7,order:2},
+      {label:'Meta',data:metaV,type:'line',borderColor:'rgba(74,120,255,.7)',borderDash:[5,5],backgroundColor:'transparent',pointRadius:3,pointBackgroundColor:'#4A78FF',order:1}
+    ]},options:{...CD,responsive:true,maintainAspectRatio:false}
+  });
+}
+
+/* ──────────── RANKING ──────────── */
+function renderRanking(){
+  const d=computeData();
+  const mode=document.getElementById('rankFilter')?.value||'receita';
+  const sorted=[...d].sort((a,b)=>{
+    if(isActive(a)&&!isActive(b))return -1;
+    if(!isActive(a)&&isActive(b))return 1;
+    if(mode==='qtd')return b.totalQtd-a.totalQtd;
+    if(mode==='pct')return (b.pct||0)-(a.pct||0);
+    return b.total-a.total;
+  });
+  const tb=document.getElementById('rtBody');
+  if(!tb)return;
+  let pos=0;
+  tb.innerHTML=sorted.map(r=>{
+    const active=isActive(r);
+    if(active)pos++;
+    const p=r.pct!==null?Math.min(r.pct,1):0;
+    const pT=!active?r.status:(r.pct!==null?fP(r.pct*100):'—');
+    const cl=pos===1?'p1':pos===2?'p2':pos===3?'p3':'pn';
+    const co=pCol(r.pct);
+    const totalLoss=(r.losses?.cancel||[]).reduce((a,b)=>a+b,0)+(r.losses?.reject||[]).reduce((a,b)=>a+b,0);
+    const lossCell=totalLoss>2
+      ?`<span class="alert-tag">⚠️ ${totalLoss}</span>`
+      :totalLoss>0
+        ?`<span class="warn-tag">⚠️ ${totalLoss}</span>`
+        :`<span style="color:var(--green);font-size:11px">✓ 0</span>`;
+    const metaSemVal=r.metaSem||CFG.metaSem||340;
+    // Semana atual: última com dados
+    const semKeys=['s1','s2','s3','s4'];
+    let currSemVal=0;
+    for(let i=3;i>=0;i--){if(r[semKeys[i]]>0){currSemVal=r[semKeys[i]];break;}}
+    return `<tr class="${pos<=3&&active?'top3':''}">
+      <td><span class="pos ${active?cl:'pn'}">${active?pos:'—'}</span></td>
+      <td style="font-weight:600;font-size:12px">${r.name.split(' ').slice(0,2).join(' ')}</td>
+      <td style="font-size:11px">${brlK(r.s1||0)}</td>
+      <td style="font-size:11px">${brlK(r.s2||0)}</td>
+      <td style="font-size:11px">${brlK(r.s3||0)}</td>
+      <td style="font-size:11px">${brlK(r.s4||0)}</td>
+      <td style="font-weight:700">${brl(r.total)}</td>
+      <td style="color:var(--tx2)">${r.totalQtd||0}</td>
+      <td><div class="meta-badge"><span class="meta-badge-real">${active?brl(r.total):'—'}</span><span class="meta-badge-meta">Meta: ${active?brl(r.meta):'—'}</span></div></td>
+      <td><div class="meta-badge"><span class="meta-badge-real">${active?brlK(currSemVal):'—'}</span><span class="meta-badge-sem">Meta: ${active?brlK(metaSemVal):'—'}</span></div></td>
+      <td style="font-weight:700;color:${co}">${pT}</td>
+      <td>${lossCell}</td>
+      <td><div class="mbar"><div class="mbar-f" style="width:${(p*100).toFixed(0)}%;background:${co}"></div></div></td>
+      <td>${statusTag(r.pct,r.status)}</td>
+    </tr>`;
+  }).join('');
+}
+
+/* ──────────── PÓDIO ──────────── */
+function renderPodio(d){
+  const top=(d||computeData()).filter(r=>r.pct!==null).slice(0,3);
+  const el=document.getElementById('podioScene');
+  if(!el)return;
+  if(!top.length){el.innerHTML='<div class="empty"><div class="empty-i">🏆</div><p>Importe dados para ver o pódio</p></div>';return;}
+  const medals=['🥇','🥈','🥉'];
+  const rCls=['rank1','rank2','rank3'];
+  const order=top.length>=2?[top[1],top[0],top[2]].filter(Boolean):top;
+  const oIdx=top.length>=2?[1,0,2]:[0,1,2];
+  el.innerHTML=order.map((r,i)=>{
+    const ri=oIdx[i];
+    const cfg=CFG.atendentes?.[r.name]||{};
+    const foto=cfg.foto||'';
+    const seal=!isActive(r)?sealHtml(r.status):'';
+    const av=foto?`<img src="${foto}" alt="${r.name}">`:ini(r.name);
+    const metaSemVal=r.metaSem||CFG.metaSem||340;
+    const semKeys=['s1','s2','s3','s4'];
+    let currSemVal=0;
+    for(let j=3;j>=0;j--){if(r[semKeys[j]]>0){currSemVal=r[semKeys[j]];break;}}
+    const totalLoss=((r.losses?.cancel||[]).reduce((a,b)=>a+b,0))+((r.losses?.reject||[]).reduce((a,b)=>a+b,0));
+    const lossHtml=totalLoss>0
+      ?`<div style="margin:4px auto 0;display:inline-flex;align-items:center;gap:4px;background:rgba(255,85,114,.18);border:1px solid rgba(255,85,114,.3);padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;color:var(--red)">⚠️ ${totalLoss} perda(s)</div>`
+      :`<div style="font-size:9px;color:var(--green);margin-top:3px">✓ Sem perdas</div>`;
+    const semColor=currSemVal>=metaSemVal?'var(--green)':currSemVal>=metaSemVal*.7?'var(--yel)':'var(--red)';
+    return `<div class="pi ${rCls[ri]}">
+      <div class="pi-av">${av}${seal}</div>
+      <div class="pi-name">${r.name.split(' ').slice(0,2).join(' ')}</div>
+      <div class="pi-val">${brl(r.total)}</div>
+      <div class="pi-qty">${r.totalQtd||0} vendas</div>
+      <div class="pi-meta">Meta mensal: ${brl(r.meta)}</div>
+      <div class="pi-pct">${fP((r.pct||0)*100)} da meta</div>
+      <div style="font-size:10px;color:${semColor};margin:2px 0">Sem atual: ${brlK(currSemVal)} / Meta: ${brlK(metaSemVal)}</div>
+      ${lossHtml}
+      <div class="pi-stand"><span class="pi-medal">${medals[ri]}</span></div>
+    </div>`;
+  }).join('');
+}
+
+/* ──────────── SEMANAL ──────────── */
+function renderSemanal(){
+  const lbl=document.getElementById('semanalMesLabel');
+  if(lbl)lbl.textContent=activeMonthLabel&&activeMonthLabel!=='—'?activeMonthLabel:'Aguardando dados';
+  const sems=semanalTotals();
+  const grid=document.getElementById('wkGrid');
+  if(grid) grid.innerHTML=sems.map(s=>{
+    const p=pct(s.real,s.meta)*100;
+    const has=s.real>0;
+    const co=!has?'var(--mu)':p>=100?'var(--green)':p>=70?'var(--yel)':'var(--red)';
+    const ico=!has?'⏳':p>=100?'✅':p>=70?'⚠️':'🔴';
+    const barW=Math.min(p,100).toFixed(0);
+    const totalLoss=(s.cancelados||0)+(s.rejeitados||0);
+    const lossHtml=totalLoss>0?`<div class="wk-loss">⚠️ ${totalLoss} perda(s) esta semana — ${s.cancelados||0} cancelado(s), ${s.rejeitados||0} rejeitado(s)</div>`:'';
+    return `<div class="gc wk">
+      <div class="wk-top" style="background:${co}"></div>
+      <div class="wk-head">
+        <div><div class="wk-label">${s.label}</div><div class="wk-period">${s.periodo}</div></div>
+        <div class="wk-ico">${ico}</div>
+      </div>
+      <div class="wk-stats">
+        <div><div class="ws-l">Realizado</div><div class="ws-v" style="color:${co}">${has?brlK(s.real):'—'}</div><div class="ws-q">${s.qtd||0} vendas</div></div>
+        <div><div class="ws-l">Meta</div><div class="ws-v">${brlK(s.meta)}</div></div>
+        <div><div class="ws-l">% Meta</div><div class="ws-v" style="color:${co}">${has?fP(p):'Pendente'}</div></div>
+      </div>
+      <div class="wk-track"><div class="wk-fill" style="width:${barW}%;background:${co}"></div></div>
+      <div class="wk-note">${p>=100?'✅ Semana atingida!':!has?'Dados ainda não lançados':`Faltam ${brl(Math.max(0,s.meta-s.real))}`}</div>
+      ${lossHtml}
+    </div>`;
+  }).join('');
+
+  mkChart('cEvolucao',{
+    type:'line',data:{labels:sems.map(s=>s.label),datasets:[
+      {label:'Realizado',data:sems.map(s=>s.real),borderColor:'#E8007D',backgroundColor:'rgba(232,0,125,.08)',fill:true,tension:.4,pointBackgroundColor:'#E8007D',pointRadius:5},
+      {label:'Meta',data:sems.map(s=>s.meta),borderColor:'rgba(74,120,255,.7)',borderDash:[6,4],backgroundColor:'transparent',tension:.4,pointRadius:4,pointBackgroundColor:'#4A78FF'}
+    ]},options:{...CD,responsive:true,maintainAspectRatio:false}
+  });
+
+  const top5=computeData().filter(r=>isActive(r)).slice(0,5);
+  const hCols=['#FFD700','#E8007D','#4A78FF','#00DFA2','#FF9F43'];
+  mkChart('cIndiv',{
+    type:'bar',data:{
+      labels:top5.map(r=>fName(r.name)),
+      datasets:SEMANAS_BASE.map((s,i)=>({
+        label:s.label,data:top5.map(r=>r[s.key]||0),backgroundColor:hCols[i]+'BB',borderRadius:4
+      }))
+    },options:{...CD,responsive:true,maintainAspectRatio:false,scales:{x:{...CD.scales.x,stacked:false},y:{...CD.scales.y}}}
+  });
+}
+
+/* ──────────── HISTÓRICO ──────────── */
+function renderHistorico(){
+  const sel=document.getElementById('monthSel');
+  const months=[
+    {key:'jan26',label:'Jan/26'},
+    {key:'fev26',label:'Fev/26'},
+    {key:'mar26',label:'Mar/26'},
+    {key:'atual',label:(activeMonthLabel&&activeMonthLabel!=='—'?activeMonthLabel.replace('/','/'):'Atual')+' (importado)'},
+  ];
+  if(sel) sel.innerHTML=months.map(m=>`<button class="mb${currentMonth===m.key?' on':''}" onclick="selMonth(this,'${m.key}')">${m.label}</button>`).join('');
+  renderMonthTable(currentMonth);
+  const top5=computeData().filter(r=>isActive(r)).slice(0,5);
+  const hC=['#FFD700','#E8007D','#4A78FF','#00DFA2','#FF9F43'];
+  mkChart('cHist',{
+    type:'line',data:{
+      labels:months.map(m=>m.label),
+      datasets:top5.map((r,i)=>({
+        label:fName(r.name),
+        data:months.map(m=>{
+          if(m.key==='atual')return r.total;
+          const row=(HISTORICO[m.key]?.rows||[]).find(x=>x.n===r.name);
+          return row?row.total:null;
+        }),
+        borderColor:hC[i],backgroundColor:hC[i]+'20',tension:.4,pointRadius:4,pointBackgroundColor:hC[i],spanGaps:true
+      }))
+    },options:{...CD,responsive:true,maintainAspectRatio:false}
+  });
+}
+function selMonth(el,key){
+  currentMonth=key;
+  document.querySelectorAll('.mb').forEach(b=>b.classList.remove('on'));
+  el.classList.add('on');
+  renderMonthTable(key);
+}
+function renderMonthTable(key){
+  const lbl=document.getElementById('mLabel');
+  if(key==='atual'){
+    const d=computeData().filter(r=>isActive(r));
+    if(lbl)lbl.textContent=(activeMonthLabel||'Mês atual')+' (importado)';
+    const head=document.getElementById('mHead');
+    const wkKeys=SEMANAS_BASE.map(s=>s.key);
+    const wkLabels=SEMANAS_BASE.map((s,i)=>'S'+(i+1));
+    if(head)head.innerHTML='<th>Colaboradora</th>'+wkLabels.map(l=>`<th>${l}</th>`).join('')+'<th>Total</th><th>Meta</th><th>%</th>';
+    const body=document.getElementById('mBody');
+    if(body)body.innerHTML=d.map(r=>{
+      const p=(r.pct||0)*100;
+      const co=pCol(r.pct);
+      return `<tr><td>${r.name.split(' ').slice(0,2).join(' ')}</td>
+        ${wkKeys.map(k=>`<td>${brlK(r[k]||0)}</td>`).join('')}
+        <td style="font-weight:700">${brl(r.total)}</td>
+        <td>${brl(r.meta)}</td>
+        <td style="font-weight:700;color:${co}">${fP(p)}</td></tr>`;
+    }).join('');
+    return;
+  }
+  const hist=HISTORICO[key];
+  if(!hist){if(lbl)lbl.textContent='Sem dados';return;}
+  if(lbl)lbl.textContent=hist.label;
+  const head=document.getElementById('mHead');
+  if(head)head.innerHTML='<th>Colaboradora</th>'+hist.cols.map(c=>`<th>${c}</th>`).join('')+'<th>Total</th><th>Meta</th><th>%</th>';
+  const body=document.getElementById('mBody');
+  if(!hist.rows||hist.rows.length===0){
+    if(body)body.innerHTML=`<tr><td colspan="${hist.cols.length+4}" style="text-align:center;padding:32px;color:var(--mu)">📭 ${hist.label} ainda sem dados — importe um arquivo deste mês para popular automaticamente.</td></tr>`;
+    return;
+  }
+  if(body)body.innerHTML=(hist.rows||[]).map(r=>{
+    const p=r.meta>0?r.total/r.meta*100:0;
+    const co=pCol(p/100);
+    return `<tr><td>${r.n.split(' ').slice(0,2).join(' ')}</td>
+      ${r.v.map((v,i)=>{
+        const hit=r.hit?.[i];
+        const dot=hit===1?'var(--green)':hit===0?'var(--red)':'var(--mu)';
+        return `<td><span class="mdot" style="background:${dot};margin-right:4px"></span>${brlK(v)}</td>`;
+      }).join('')}
+      <td style="font-weight:700">${brl(r.total)}</td>
+      <td>${brl(r.meta)}</td>
+      <td style="font-weight:700;color:${co}">${fP(p)}</td></tr>`;
+  }).join('');
+}
+
+/* ──────────── INSIGHTS & RECORDES ──────────── */
+function renderInsights(d){
+  d=d||computeData();
+  const active=d.filter(r=>isActive(r));
+  const total=active.reduce((s,r)=>s+r.total,0);
+  const meta=active.reduce((s,r)=>s+r.meta,0);
+  const qtdTot=active.reduce((s,r)=>s+r.totalQtd,0);
+  const ticket=qtdTot>0?total/qtdTot:0;
+  const sems=semanalTotals();
+  const totalCancel=RAW_ROWS.filter(r=>r.estagio==='CANCELADO').length;
+  const totalReject=RAW_ROWS.filter(r=>r.estagio==='REJEITADO').length;
+  const totalRows=RAW_ROWS.length;
+  const lossRate=totalRows>0?(totalCancel+totalReject)/totalRows*100:0;
+
+  set$('iGap',total>=meta?'✓ Bateu!':brl(Math.max(0,meta-total)));
+  set$('iGapSub',total>=meta?'Meta atingida com folga!':'Valor restante para 100%');
+  set$('iTicket',brl(ticket));
+  set$('iLossRate',fP(lossRate));
+  set$('iLossRateSub',`${totalCancel} cancelados + ${totalReject} rejeitados de ${totalRows} total`);
+  set$('iReceita',brl(total));
+  set$('iReceitaSub',`${active.length} atendentes ativas`);
+  set$('iQtdTotal',qtdTot.toString());
+  set$('iQtdSub',`Média: ${(qtdTot/Math.max(active.length,1)).toFixed(1)} por atendente`);
+
+  // Melhor/Pior Semana
+  const hasSemData=sems.some(s=>s.real>0);
+  if(hasSemData){
+    const bestSem=sems.reduce((a,b)=>b.real>a.real?b:a);
+    const worstSem=sems.filter(s=>s.real>0).reduce((a,b)=>b.real<a.real?b:a,sems.find(s=>s.real>0)||sems[0]);
+    set$('iBestSem',bestSem.label);
+    set$('iBestSemSub',`${brl(bestSem.real)} (${bestSem.qtd} contratos)`);
+    // Records
+    set$('rBestWeek',bestSem.label);
+    set$('rBestWeekSub',`${brl(bestSem.real)} · ${bestSem.qtd} contratos`);
+    set$('rWorstWeek',worstSem.label);
+    set$('rWorstWeekSub',`${brl(worstSem.real)} · ${worstSem.qtd} contratos`);
+  }
+
+  // Records por Dia (via RAW_ROWS)
+  if(RAW_ROWS.length>0){
+    const byDay={};
+    RAW_ROWS.forEach(r=>{
+      if(!r.data)return;
+      const key=r.data;
+      if(!byDay[key])byDay[key]={val:0,qtd:0};
+      if(r.estagio!=='CANCELADO'&&r.estagio!=='REJEITADO'){
+        byDay[key].val+=(r.valor||0);
+        byDay[key].qtd++;
+      }
+    });
+    const days=Object.entries(byDay).filter(([,v])=>v.qtd>0);
+    if(days.length>0){
+      const bestDay=days.reduce((a,b)=>b[1].val>a[1].val?b:a);
+      const worstDay=days.reduce((a,b)=>b[1].val<a[1].val?b:a);
+      set$('rBestDay',fmtDate(bestDay[0]));
+      set$('rBestDaySub',`${brl(bestDay[1].val)} · ${bestDay[1].qtd} contratos`);
+      set$('rWorstDay',fmtDate(worstDay[0]));
+      set$('rWorstDaySub',`${brl(worstDay[1].val)} · ${worstDay[1].qtd} contratos`);
+    }
+  }
+
+  // Records por Atendente
+  if(active.length>0){
+    const bestAtn=active.reduce((a,b)=>b.total>a.total?b:a);
+    const worstAtn=active.filter(r=>r.total>0).reduce((a,b)=>b.total<a.total?b:a,active.find(r=>r.total>0)||active[0]);
+    const bestConv=active.filter(r=>r.pct!==null).reduce((a,b)=>(b.pct||0)>(a.pct||0)?b:a);
+    const worstConv=active.filter(r=>r.pct!==null&&r.total>0).reduce((a,b)=>(b.pct||0)<(a.pct||0)?b:a,active.find(r=>r.pct!==null&&r.total>0)||active[0]);
+    set$('rBestAtn',fName(bestAtn.name));
+    set$('rBestAtnSub',`${brl(bestAtn.total)} · ${bestAtn.totalQtd} contratos`);
+    if(worstAtn){set$('rWorstAtn',fName(worstAtn.name));set$('rWorstAtnSub',`${brl(worstAtn.total)} · ${worstAtn.totalQtd} contratos`);}
+    set$('rBestConv',fName(bestConv.name));
+    set$('rBestConvSub',`${fP((bestConv.pct||0)*100)} da meta`);
+    if(worstConv){set$('rWorstConv',fName(worstConv.name));set$('rWorstConvSub',`${fP((worstConv.pct||0)*100)} da meta`);}
+  }
+
+  // Insight cards
+  const above=active.filter(r=>r.pct!==null&&r.pct>=1);
+  const near=active.filter(r=>r.pct!==null&&r.pct>=.7&&r.pct<1);
+  const below=active.filter(r=>r.pct!==null&&r.pct<.7);
+  const cards=[
+    {ib:'var(--mg)',ico:'🎯',title:'Distribuição de Metas',
+     body:`${above.length} atendente(s) bateram a meta. ${near.length} estão próximas (≥70%). ${below.length} abaixo do esperado.`,
+     pills:[above.length?chip(`${above.length} ✓ Meta`,'tg'):'',near.length?chip(`${near.length} Próximas`,'ty'):'',below.length?chip(`${below.length} Abaixo`,'tr'):''].filter(Boolean).join('')
+    },
+    {ib:'var(--red)',ico:'📉',title:'Análise de Perda (Funil)',
+     body:`Taxa de perda: ${fP(lossRate)}. ${totalCancel} cancelado(s) e ${totalReject} rejeitado(s) de ${totalRows} contratos importados. ${lossRate>10?'⚠️ Alerta: taxa acima de 10% — investigar causas.':'Taxa dentro do esperado.'}`,
+     pills:[chip(`Cancel: ${totalCancel}`,'tr'),chip(`Rejeit: ${totalReject}`,'ty'),chip(`Taxa: ${fP(lossRate)}`,'tm')].join('')
+    },
+    {ib:'var(--green)',ico:'📈',title:'Ticket Médio & Volume',
+     body:`Ticket médio de ${brl(ticket)}. Total de ${qtdTot} contratos fechados por ${active.length} atendentes ativas. Média de ${(qtdTot/Math.max(active.length,1)).toFixed(1)} contratos/atendente.`,
+     pills:[chip(`Ticket: ${brl(ticket)}`,'tg'),chip(`Qtd: ${qtdTot}`,'tm')].join('')
+    },
+  ];
+  const el=document.getElementById('insGrid');
+  if(el)el.innerHTML=cards.map(c=>`
+    <div class="gc ic" style="--ib:${c.ib}">
+      <div class="ic-ico">${c.ico}</div>
+      <div class="ic-title">${c.title}</div>
+      <div class="ic-body">${c.body}</div>
+      <div class="ic-pills">${c.pills}</div>
+    </div>`).join('');
+
+  const labels=active.map(r=>fName(r.name));
+  mkChart('cInsReceita',{type:'bar',data:{labels,datasets:[{label:'Receita (R$)',data:active.map(r=>r.total),backgroundColor:'rgba(232,0,125,.65)',borderColor:'#E8007D',borderWidth:1,borderRadius:6}]},options:{...CD,responsive:true,maintainAspectRatio:false}});
+  mkChart('cInsQtd',{type:'bar',data:{labels,datasets:[{label:'Qtd Contratos',data:active.map(r=>r.totalQtd),backgroundColor:'rgba(74,120,255,.65)',borderColor:'#4A78FF',borderWidth:1,borderRadius:6}]},options:{...CD,responsive:true,maintainAspectRatio:false}});
+  const ticks=active.map(r=>r.totalQtd>0?r.total/r.totalQtd:0);
+  mkChart('cTicket',{type:'bar',data:{labels,datasets:[{label:'Ticket Médio (R$)',data:ticks,backgroundColor:'rgba(0,223,162,.65)',borderColor:'#00DFA2',borderWidth:1,borderRadius:6}]},options:{...CD,responsive:true,maintainAspectRatio:false}});
+  const freq=active.map(r=>['s1','s2','s3','s4'].filter(k=>r[k]>=(r.metaSem||340)).length);
+  mkChart('cFreq',{type:'bar',data:{labels,datasets:[{label:'Semanas c/ meta batida',data:freq,backgroundColor:'rgba(255,204,77,.7)',borderColor:'var(--yel)',borderWidth:1,borderRadius:6}]},options:{...CD,responsive:true,maintainAspectRatio:false,scales:{...CD.scales,y:{...CD.scales.y,max:4,ticks:{...CD.scales.y.ticks,stepSize:1}}}}});
+}
+
+/* ──────────── QUALIDADE ──────────── */
+function renderQualidade(){
+  const all=RAW_ROWS;
+  const total=all.length;
+  const aprov=all.filter(r=>r.estagio==='APROVADO').length;
+  const pend=all.filter(r=>r.estagio==='EM APROVAÇÃO').length;
+  const cancel=all.filter(r=>r.estagio==='CANCELADO').length;
+  const reject=all.filter(r=>r.estagio==='REJEITADO').length;
+  const lossTotal=cancel+reject;
+  const lossPct=total>0?(lossTotal/total)*100:0;
+
+  set$('qTotal',total||'Sem dados');
+  set$('qAprov',aprov);
+  set$('qAprovSub',`${total>0?fP(aprov/total*100):'—'} do total`);
+  set$('qPend',pend);
+  set$('qPendSub',`${total>0?fP(pend/total*100):'—'} do total`);
+  set$('qCancel',cancel);
+  set$('qCancelSub',`${total>0?fP(cancel/total*100):'—'} do total`);
+  set$('qRejeit',reject);
+  set$('qRejeitSub',`${total>0?fP(reject/total*100):'—'} do total`);
+  set$('qLossPct',fP(lossPct));
+  set$('qLossSub',`${lossTotal} de ${total} contratos perdidos`);
+
+  // Charts de estágio
+  mkChart('cEstagio',{
+    type:'doughnut',
+    data:{
+      labels:['Aprovado','Em Aprovação','Cancelado','Rejeitado'],
+      datasets:[{data:[aprov,pend,cancel,reject],backgroundColor:['rgba(0,223,162,.8)','rgba(255,204,77,.8)','rgba(255,85,114,.8)','rgba(232,0,125,.8)'],borderWidth:0}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#637098',font:{size:11}}}}}
+  });
+
+  const semsLoss=semanalTotals();
+  mkChart('cLossSem',{
+    type:'bar',
+    data:{
+      labels:semsLoss.map(s=>s.label),
+      datasets:[
+        {label:'Cancelados',data:semsLoss.map(s=>s.cancelados||0),backgroundColor:'rgba(255,85,114,.75)',borderRadius:5},
+        {label:'Rejeitados',data:semsLoss.map(s=>s.rejeitados||0),backgroundColor:'rgba(255,204,77,.75)',borderRadius:5},
+      ]
+    },
+    options:{...CD,responsive:true,maintainAspectRatio:false}
+  });
+
+  // Tabela por atendente
+  const d=computeData();
+  const lb=document.getElementById('lossBody');
+  if(lb){
+    lb.innerHTML=d.filter(r=>isActive(r)).map(r=>{
+      const cancelSem=(r.losses?.cancel||[0,0,0,0]).reduce((a,b)=>a+b,0); // total semana atual = soma
+      const rejectSem=(r.losses?.reject||[0,0,0,0]).reduce((a,b)=>a+b,0);
+      const cancelMes=cancelSem; // mês = mesma janela por ora
+      const rejectMes=rejectSem;
+      const totalCtr=(r.qtd||[0,0,0,0]).reduce((a,b)=>a+b,0)+cancelSem+rejectSem;
+      const lossRate=totalCtr>0?(cancelSem+rejectSem)/totalCtr*100:0;
+      const alertHtml=(cancelSem+rejectSem)>2
+        ?`<span class="alert-tag">⚠️ Alta</span>`
+        :(cancelSem+rejectSem)>0
+          ?`<span class="warn-tag">⚠️ ${cancelSem+rejectSem}</span>`
+          :`<span style="color:var(--green);font-size:11px">✓ Ok</span>`;
+      return `<tr>
+        <td style="font-weight:600">${r.name.split(' ').slice(0,2).join(' ')}</td>
+        <td>${totalCtr}</td>
+        <td>${cancelSem}</td><td>${cancelMes}</td>
+        <td>${rejectSem}</td><td>${rejectMes}</td>
+        <td style="color:${lossRate>10?'var(--red)':lossRate>5?'var(--yel)':'var(--green)'}">${fP(lossRate)}</td>
+        <td>${alertHtml}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // Detalhe contratos perdidos
+  const ld=document.getElementById('lossDetail');
+  if(ld){
+    const lost=all.filter(r=>r.estagio==='CANCELADO'||r.estagio==='REJEITADO');
+    if(!lost.length){ld.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--mu);padding:24px">Nenhum contrato cancelado ou rejeitado</td></tr>';return;}
+    ld.innerHTML=lost.map(r=>{
+      const wi=getWeekIdxFromDate(r.data);
+      const wlabel=SEMANAS_BASE[wi]?.label||`S${wi+1}`;
+      return `<tr>
+        <td>${fmtDate(r.data)}</td>
+        <td>${(r.nome||'—').split(' ').slice(0,2).join(' ')}</td>
+        <td><span class="${r.estagio==='CANCELADO'?'alert-tag':'warn-tag'}">${r.estagio}</span></td>
+        <td>${brl(r.valor||0)}</td>
+        <td>${wlabel}</td>
+      </tr>`;
+    }).join('');
+  }
+}
+
+/* ──────────── CONFIG UI ──────────── */
+function buildConfigUI(d){
+  const csEl=document.getElementById('cfgSemanas');
+  if(csEl)csEl.innerHTML=SEMANAS_BASE.map((s,i)=>`
+    <div class="cfg-row" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;align-items:end;margin-bottom:10px">
+      <div><div class="cfg-label">${s.label} — Período</div><input class="cfg-input" id="sPer${i}" value="${s.periodo}" style="font-size:11px"></div>
+      <div><div class="cfg-label">Meta Equipe (R$)</div><input class="cfg-input" id="sMeta${i}" type="number" value="${s.metaEquipe}" style="font-size:11px"></div>
+      <div><div class="cfg-label">Meta Individual Semanal (R$)</div><input class="cfg-input" id="sMetaInd${i}" type="number" value="${s.metaSem||340}" style="font-size:11px"></div>
+    </div>`).join('');
+
+  const ag=document.getElementById('atdGrid');
+  if(!ag)return;
+  const all=d||computeData();
+  ag.innerHTML=all.map(r=>{
+    const cfgA=CFG.atendentes?.[r.name]||{};
+    const foto=cfgA.foto||'';
+    const metaM=cfgA.metaInd||r.metaInd||CFG.metaInd||1362;
+    const metaS=cfgA.metaSem||r.metaSem||CFG.metaSem||340;
+    const status=cfgA.status||r.status||'Ativa';
+    const iniL=ini(r.name);
+    const avHtml=foto?`<img src="${foto}" alt="${r.name}">`:iniL;
+    const seal=status!=='Ativa'?sealHtml(status):'';
+    const badgeCls=status==='Férias'?'ty':status==='Atestado'?'ta':status==='Licença'?'tl':'tg';
+    const badgeTx=status==='Ativa'?'● Ativa':status;
+    const totalLossAtd=((r.losses?.cancel||[]).reduce((a,b)=>a+b,0))+((r.losses?.reject||[]).reduce((a,b)=>a+b,0));
+    const lossAtdHtml=totalLossAtd>0?`<span class="tag tr" style="font-size:9px;margin-top:4px;display:inline-flex">⚠️ ${totalLossAtd} perda(s)</span>`:'';
+    const currSemRealAtd=(()=>{const sks=['s1','s2','s3','s4','s5','s6'];for(let j=5;j>=0;j--){if(r[sks[j]]>0)return r[sks[j]];}return 0;})();
+    const metaSAtd=cfgA.metaSem||r.metaSem||CFG.metaSem||340;
+    const semAtdColor=currSemRealAtd>=metaSAtd?'var(--green)':currSemRealAtd>0?'var(--yel)':'var(--mu)';
+    return `<div class="atd-card">
+      <div class="atd-top">
+        <div class="atd-av" id="av-${iniL}" onclick="pickPhoto('${r.name}')" title="Clique para trocar foto">${avHtml}${seal}</div>
+        <div>
+          <div class="atd-name">${r.name.split(' ').slice(0,2).join(' ')}</div>
+          <div class="atd-role">Atendente Comercial</div>
+          <span class="tag ${badgeCls}" style="font-size:9px;margin-top:4px;display:inline-flex">${badgeTx}</span>
+          ${lossAtdHtml}
+          <div style="font-size:9px;color:${semAtdColor};margin-top:3px">Sem atual: ${brlK(currSemRealAtd)} / Meta: ${brlK(metaSAtd)}</div>
+        </div>
+      </div>
+      <div class="atd-fields">
+        <div class="atd-field"><label>Meta Mensal (R$)</label><input type="number" id="atdMetaM-${iniL}" value="${metaM}" placeholder="1362" onchange="setAtdField('${r.name}','metaInd',this.value)"></div>
+        <div class="atd-field"><label>Meta Semanal (R$)</label><input type="number" id="atdMetaS-${iniL}" value="${metaS}" placeholder="340" onchange="setAtdField('${r.name}','metaSem',this.value)"></div>
+        <div class="atd-field" style="grid-column:1/-1"><label>Status</label>
+          <select id="atdStatus-${iniL}" onchange="setAtdStatus('${r.name}',this.value)">
+            <option value="Ativa" ${status==='Ativa'?'selected':''}>● Ativa</option>
+            <option value="Férias" ${status==='Férias'?'selected':''}>🏖 Férias</option>
+            <option value="Atestado" ${status==='Atestado'?'selected':''}>🏥 Atestado</option>
+            <option value="Licença" ${status==='Licença'?'selected':''}>📋 Licença</option>
+          </select>
+        </div>
+      </div>
+      <button class="atd-foto-btn" onclick="pickPhoto('${r.name}')">📷 ${foto?'Trocar foto':'Adicionar foto'}</button>
+    </div>`;
+  }).join('');
+
+  const fi=(id,v)=>{const e=document.getElementById(id);if(e)e.value=v||'';};
+  fi('cfgMetaInd',CFG.metaInd||1362);fi('cfgMetaTime',CFG.metaTime||15000);
+  fi('cfgMetaCoord',CFG.metaCoord||3000);fi('cfgMetaCoordSem',CFG.metaCoordSem||750);
+  fi('cfgUnidade',CFG.unidade||'');
+  fi('cfgRemoteUrl',CFG.remoteUrl||'');
+  fi('cfgColNome',CFG.colNome||'Nome Colaborador');
+  fi('cfgColUnidade',CFG.colUnidade||'Unidade Ajustado ||');
+  fi('cfgColReceita',CFG.colReceita||'R$ Vendas');
+  fi('cfgColEstagio',CFG.colEstagio||'Estágio Contrato Proxxima');
+  fi('cfgColData',CFG.colData||'Date (Data Venda Contrato Proxxima)');
+}
+
+function setAtdField(name,field,val){
+  if(!CFG.atendentes)CFG.atendentes={};
+  if(!CFG.atendentes[name])CFG.atendentes[name]={};
+  CFG.atendentes[name][field]=parseFloat(val)||0;
+  const r=DATA.find(d=>d.name===name);
+  if(r)r[field]=CFG.atendentes[name][field];
+}
+function setAtdStatus(name,status){
+  if(!CFG.atendentes)CFG.atendentes={};
+  if(!CFG.atendentes[name])CFG.atendentes[name]={};
+  CFG.atendentes[name].status=status;
+  const r=DATA.find(d=>d.name===name);
+  if(r){
+    r.status=status;
+    if(status!=='Ativa')r.metaInd=0;
+    else r.metaInd=CFG.atendentes[name]?.metaInd||CFG.metaInd||1362;
+  }
+  buildConfigUI(computeData());
+}
+function pickPhoto(name){
+  const inp=document.createElement('input');
+  inp.type='file';inp.accept='image/*';
+  inp.onchange=e=>{
+    const file=e.target.files[0];if(!file)return;
+    if(file.size>2*1024*1024){toast('⚠️ Imagem muito grande. Máximo 2MB.','err');return;}
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      if(!CFG.atendentes)CFG.atendentes={};
+      if(!CFG.atendentes[name])CFG.atendentes[name]={};
+      CFG.atendentes[name].foto=ev.target.result;
+      saveSettings();buildConfigUI(computeData());renderPodio(computeData());
+      toast(`📷 Foto de ${name.split(' ')[0]} atualizada!`);
+    };
+    reader.readAsDataURL(file);
+  };
+  inp.click();
+}
+function saveConfig(){
+  const gi=id=>parseFloat(document.getElementById(id)?.value)||0;
+  const gs=id=>document.getElementById(id)?.value||'';
+  CFG.metaInd=gi('cfgMetaInd')||1362;
+  CFG.metaTime=gi('cfgMetaTime')||15000;
+  CFG.metaCoord=gi('cfgMetaCoord')||3000;
+  CFG.metaCoordSem=gi('cfgMetaCoordSem')||750;
+  CFG.unidade=gs('cfgUnidade')||'';
+  CFG.remoteUrl=gs('cfgRemoteUrl')||'';
+  CFG.colNome=gs('cfgColNome')||'Nome Colaborador';
+  CFG.colUnidade=gs('cfgColUnidade')||'Unidade Ajustado ||';
+  CFG.colReceita=gs('cfgColReceita')||'R$ Vendas';
+  CFG.colEstagio=gs('cfgColEstagio')||'Estágio Contrato Proxxima';
+  CFG.colData=gs('cfgColData')||'Date (Data Venda Contrato Proxxima)';
+  SEMANAS_BASE.forEach((s,i)=>{
+    const p=document.getElementById(`sPer${i}`)?.value;
+    const m=parseFloat(document.getElementById(`sMeta${i}`)?.value);
+    const ms=parseFloat(document.getElementById(`sMetaInd${i}`)?.value);
+    if(p)s.periodo=p;if(m)s.metaEquipe=m;if(ms)s.metaSem=ms;
+  });
+  DATA.forEach(r=>{
+    const cfgA=CFG.atendentes?.[r.name];
+    const ns=cfgA?.status||r.status||'Ativa';
+    r.status=ns;
+    if(ns!=='Ativa')r.metaInd=0;
+    else r.metaInd=cfgA?.metaInd||CFG.metaInd||1362;
+    if(cfgA?.metaSem)r.metaSem=cfgA.metaSem;
+  });
+  saveSettings();renderAll();
+  toast('✅ Configurações salvas com sucesso!');
+}
+function clearCsvData(){
+  if(!confirm('Limpar dados importados e voltar ao estado vazio?'))return;
+  DATA=JSON.parse(JSON.stringify(BASE_MESTRA));
+  RAW_ROWS=[];
+  SEMANAS_BASE=buildEmptySemanas('Aguardando importação');
+  activeMonthKey=null; activeMonthLabel='—'; currentMonth='atual';
+  DATA.forEach(r=>{
+    const cfgA=CFG.atendentes?.[r.name];
+    if(cfgA?.status)r.status=cfgA.status;
+    if(cfgA?.metaInd)r.metaInd=cfgA.metaInd;
+    if(cfgA?.metaSem)r.metaSem=cfgA.metaSem;
+    if(r.status!=='Ativa')r.metaInd=0;
+  });
+  saveSettings();renderAll();
+  setUzStatus('Dados limpos','ok');toast('🗑️ Dados CSV limpos. Base restaurada.');
+}
+function resetConfig(){
+  if(!confirm('Restaurar TUDO ao padrão? (fotos e metas serão perdidos)'))return;
+  localStorage.removeItem(STORAGE_KEY);
+  CFG={...DEFAULT_CFG};
+  DATA=JSON.parse(JSON.stringify(BASE_MESTRA));
+  RAW_ROWS=[];
+  SEMANAS_BASE=buildEmptySemanas('Aguardando importação');
+  activeMonthKey=null; activeMonthLabel='—'; currentMonth='atual';
+  renderAll();toast('↺ Configurações restauradas ao padrão.');
+}
+
+/* ──────────── BACKUP EXPORT / IMPORT (compartilhamento via .json) ──────────── */
+function exportBackup(){
+  const payload={
+    app:'BI-Jacobina',
+    version:7,
+    exportedAt:new Date().toISOString(),
+    cfg:CFG,
+    data:DATA,
+    rawRows:RAW_ROWS,
+    semanas:SEMANAS_BASE,
+    activeMonthKey,
+    activeMonthLabel,
+    historico:HISTORICO,
+  };
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  const ts=new Date().toISOString().replace(/[:.]/g,'-').substring(0,19);
+  a.href=url; a.download=`backup_bi_jacobina_${ts}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  toast('⬇️ Backup exportado! Compartilhe o arquivo .json para que outras pessoas vejam o mesmo dashboard.');
+}
+function importBackup(file){
+  if(!file)return;
+  if(!confirm('Importar backup vai SUBSTITUIR todos os dados atuais (metas, fotos, vendas, status). Continuar?'))return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const p=JSON.parse(e.target.result);
+      if(!p||p.app!=='BI-Jacobina')throw new Error('Arquivo não é um backup válido do BI Jacobina.');
+      if(p.cfg) CFG={...DEFAULT_CFG,...p.cfg};
+      if(Array.isArray(p.data)&&p.data.length>0){
+        DATA=p.data;
+        DATA.forEach(r=>{
+          if(!r.losses)r.losses={cancel:[0,0,0,0,0,0],reject:[0,0,0,0,0,0]};
+          if(!r.qtd)r.qtd=[0,0,0,0,0,0];
+          if(!r.status)r.status='Ativa';
+        });
+      }
+      if(Array.isArray(p.rawRows)) RAW_ROWS=p.rawRows;
+      if(Array.isArray(p.semanas)&&p.semanas.length) SEMANAS_BASE=p.semanas;
+      if(p.activeMonthKey) activeMonthKey=p.activeMonthKey;
+      if(p.activeMonthLabel) activeMonthLabel=p.activeMonthLabel;
+      if(p.historico){
+        ['jan26','fev26','mar26'].forEach(k=>{ if(p.historico[k]) HISTORICO[k]=p.historico[k]; });
+      }
+      currentMonth='atual';
+      saveSettings();renderAll();
+      toast('✅ Backup importado! Dashboard sincronizado com sucesso.');
+    }catch(err){
+      toast('❌ Erro ao importar: '+err.message,'err');
+    }
+  };
+  reader.readAsText(file,'UTF-8');
+}
+
+/* ──────────── DOWNLOAD HTML PARA PUBLICAR ──────────── */
+function downloadFinalHtml(){
+  // Pega o HTML atual da página e faz download como index.html
+  const html=document.documentElement.outerHTML;
+  const blob=new Blob([html],{type:'text/html;charset=utf-8'});
+  const a=document.createElement('a');
+  const ts=new Date().toISOString().replace(/[:.]/g,'-').substring(0,16);
+  a.href=URL.createObjectURL(blob);
+  a.download=`dashboard_proxima_${ts}.html`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(a.href);
+  toast('⬇️ index.html baixado! Faça upload no GitHub Pages para publicar.');
+}
+
+/* ──────────── FILE UPLOAD HANDLER ──────────── */
+function handleFiles(files){
+  if(!files?.length)return;
+  let loaded=0,errs=0;
+  Array.from(files).forEach(f=>{
+    const ext=f.name.split('.').pop().toLowerCase();
+    const reader=new FileReader();
+    reader.onload=e=>{
+      try{
+        if(ext==='csv'||ext==='txt'){
+          processText(e.target.result,f.name);
+        } else if(ext==='xlsx'||ext==='xls'){
+          processXLSX(e.target.result,f.name);
+        } else {
+          throw new Error('Formato não suportado. Use .csv ou .xlsx');
+        }
+        loaded++;
+      }catch(err){
+        errs++;
+        toast(`Erro em ${f.name}: ${err.message}`,'err');
+        setUzStatus(`Erro: ${err.message}`,'err');
+      }
+      if(loaded+errs===files.length&&loaded>0){
+        saveSettings();renderAll();
+        confettiFired=false;
+        setTimeout(fireConfetti,600);
+        toast(`✅ ${loaded} arquivo(s) importado(s)! ${RAW_ROWS.length} registros processados.`);
+        setUzStatus(`✅ ${loaded} arquivo(s) · ${RAW_ROWS.length} registros processados (todas as unidades)`,'ok');
+      }
+    };
+    if(ext==='xlsx'||ext==='xls')reader.readAsArrayBuffer(f);
+    else reader.readAsText(f,'UTF-8');
+  });
+}
+
+function setUzStatus(msg,cls){
+  const el=document.getElementById('uzSt');
+  if(el){el.textContent=msg;el.className='uz-status '+(cls||'');}
+}
+
+/* ──────────── XLSX PARSER (v9 — usa SheetJS) ──────────── */
+function processXLSX(buffer,fname){
+  const wb=XLSX.read(buffer,{type:'arraybuffer',cellDates:true,raw:false});
+  const sheetName=wb.SheetNames[0];
+  const ws=wb.Sheets[sheetName];
+  // defval:'' garante que células vazias viram string vazia em vez de undefined
+  const rows=XLSX.utils.sheet_to_json(ws,{defval:'',raw:false});
+  if(!rows.length)throw new Error('Planilha vazia ou sem registros');
+  // Log para debug: mostra as primeiras colunas encontradas
+  if(rows[0])console.log('[v9] XLSX colunas detectadas:',Object.keys(rows[0]).slice(0,10).join(' | '));
+  processRows(rows,fname);
+}
+
+/* ──────────── CSV PARSER (v6) ──────────── */
+function processText(raw,fname){
+  const text=raw.replace(/^\uFEFF/,'').replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+  const lines=text.trim().split('\n');
+  if(lines.length<2)throw new Error('CSV vazio ou sem registros');
+
+  // Detecta separador
+  const firstLine=lines[0];
+  const sep=firstLine.split(';').length>firstLine.split(',').length?';':',';
+
+  function parseLine(line){
+    const res=[];let cur='';let inQ=false;
+    for(const c of line){
+      if(c==='"'){inQ=!inQ}
+      else if(c===sep&&!inQ){res.push(cur.trim().replace(/^"|"$/g,''));cur=''}
+      else{cur+=c}
+    }
+    res.push(cur.trim().replace(/^"|"$/g,''));return res;
+  }
+
+  const normH=s=>s.replace(/^\uFEFF/,'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/['"]/g,'').trim();
+  const rawHeader=parseLine(lines[0]);
+  const header=rawHeader.map(normH);
+
+  // Mapeia colunas de forma flexível
+  const findIdx=(candidates)=>{
+    for(const c of candidates){
+      const nc=c.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+      let idx=header.findIndex(h=>h===nc);
+      if(idx>=0)return idx;
+      idx=header.findIndex(h=>h.includes(nc)||nc.includes(h));
+      if(idx>=0)return idx;
+    }
+    return -1;
+  };
+
+  const ixN=findIdx(['nome colaborador','nome','colaborador','vendedor']);
+  const ixU=findIdx(['unidade ajustado ||','unidade ajustado','unidade','filial']);
+  const ixV=findIdx(['r$ vendas','r$vendas','receita','valor','venda','rs vendas']);
+  const ixE=findIdx(['estagio contrato proxxima','estagio contrato','estagio','stage']);
+  const ixD=findIdx(['date (data venda contrato proxxima)','date (data venda','data venda','date','data','dt venda']);
+
+  if(ixN<0)throw new Error(`Coluna Nome não encontrada. Headers: ${header.slice(0,6).join(', ')}`);
+
+  const rows=[];
+  for(let i=1;i<lines.length;i++){
+    const line=lines[i].trim();if(!line)continue;
+    const f=parseLine(line);
+    const obj={};
+    header.forEach((h,idx)=>{obj[rawHeader[idx]||h]=f[idx]||'';});
+    rows.push(obj);
+  }
+  processRows(rows,fname,{ixN,ixU,ixV,ixE,ixD,header,rawHeader});
+}
+
+/* ──────────── CORE PROCESSOR (v6) ──────────── */
+function processRows(rows,fname,colMap){
+  const normStr=s=>s.toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+  /* v8: filtro de unidade REMOVIDO — soma todas as linhas com R$ Vendas */
+
+  const parseVal=v=>{
+    if(v===null||v===undefined||v==='')return 0;
+    if(typeof v==='number')return isNaN(v)?0:v;
+    const s=String(v).replace(/\s/g,'').replace(/[R$\u00a0]/g,'');
+    let n;
+    if(s.includes('.')&&s.includes(',')){n=parseFloat(s.replace(/\./g,'').replace(',','.'))}
+    else if(s.includes(',')&&!s.includes('.')){n=parseFloat(s.replace(',','.'))}
+    else{n=parseFloat(s)}
+    return isNaN(n)?0:n;
+  };
+
+  const getField=(row,candidates)=>{
+    // 1. Exact match first (preserves special chars like R$ and accents)
+    for(const c of candidates){
+      if(row[c]!==undefined&&row[c]!==null&&row[c]!=='')return row[c];
+    }
+    // 2. Trimmed exact match (whitespace issues)
+    const keys=Object.keys(row);
+    for(const c of candidates){
+      const ct=c.trim();
+      const k=keys.find(k=>k.trim()===ct);
+      if(k&&row[k]!==undefined&&row[k]!==null&&row[k]!=='')return row[k];
+    }
+    // 3. Normalized match
+    const normC=candidates.map(x=>normStr(x));
+    const k=keys.find(k=>normC.some(nc=>normStr(k)===nc||normStr(k).includes(nc)||nc.includes(normStr(k))));
+    return k?row[k]:'';
+  };
+
+  /* PASS 1 — descobre o mês predominante (votação por contagem de datas válidas) */
+  const monthVotes={};
+  const dateCache=[];
+  for(const row of rows){
+    const dRaw=getField(row,[CFG.colData||'Date (Data Venda Contrato Proxxima)','Date (Data Venda Contrato Proxxima)','Data Venda','date','Data']);
+    const ds=normalizeDateStr(dRaw,row);
+    dateCache.push(ds);
+    if(/^\d{4}-\d{2}-\d{2}/.test(ds)){
+      const k=ds.substring(0,7); // YYYY-MM
+      monthVotes[k]=(monthVotes[k]||0)+1;
+    }
+  }
+  let detectedMonth=Object.keys(monthVotes).sort((a,b)=>monthVotes[b]-monthVotes[a])[0]||null;
+  if(detectedMonth){
+    rebuildSemanasFromMonth(detectedMonth);
+  }
+
+  /* PASS 2 — reset e contabiliza */
+  DATA.forEach(r=>{
+    r.s1=0;r.s2=0;r.s3=0;r.s4=0;r.s5=0;r.s6=0;
+    r.qtd=[0,0,0,0,0,0];
+    r.losses={cancel:[0,0,0,0,0,0],reject:[0,0,0,0,0,0]};
+  });
+  RAW_ROWS=[];
+  let imported=0,skippedUnit=0,skippedNoMatch=0;
+
+  rows.forEach((row,ri)=>{
+    const nameRaw=String(getField(row,[CFG.colNome||'Nome Colaborador','Nome Colaborador','Nome','nome'])||'').trim();
+    if(!nameRaw)return;
+
+    /* v8: SEM filtro de unidade — qualquer linha com nome é processada */
+
+    const valRaw=getField(row,[CFG.colReceita||'R$ Vendas','R$ Vendas','Valor','Receita']);
+    const estagioRaw=String(getField(row,[CFG.colEstagio||'Estágio Contrato Proxxima','Estágio Contrato Proxxima','Estagio Contrato Proxxima','Estagio'])||'').trim();
+    const statusRaw=String(getField(row,['Status Contrato Proxxima','Status'])||'').trim();
+    const dateStr=dateCache[ri];
+    const weekIdx=getWeekIdxFromDate(dateStr);
+
+    const val=parseVal(valRaw);
+    const estagio=estagioRaw.toUpperCase();
+    const statusU=statusRaw.toUpperCase();
+    const isCancelado=estagio==='CANCELADO'||statusU==='CANCELADO';
+    const isRejeitado=estagio==='REJEITADO'||estagio==='REPROVADO'||statusU==='REJEITADO'||statusU==='REPROVADO';
+
+    RAW_ROWS.push({nome:nameRaw,valor:val,estagio:isCancelado?'CANCELADO':(isRejeitado?'REJEITADO':(estagio||'EM APROVAÇÃO')),data:dateStr,semana:weekIdx});
+
+    /* Match por nome — exato normalizado primeiro.
+       Fallback: 3+ palavras significativas (>3 chars) devem coincidir.
+       Evita falso-positivo: "BRUNA EMILE" ≠ "REBECA BRUNA";
+       "GABRIELA ARAUJO SANTOS OLIVEIRA" ≠ "MIKELLE SANTOS ARAUJO DE OLIVEIRA" */
+    const nameN=normStr(nameRaw);
+    const found=DATA.find(d=>{
+      const dn=normStr(d.name);
+      if(dn===nameN)return true; // match exato normalizado (caso mais comum)
+      // fallback seguro: mínimo 3 palavras significativas em comum
+      const nw=nameN.split(' ').filter(w=>w.length>3);
+      const dw=dn.split(' ').filter(w=>w.length>3);
+      const shared=nw.filter(w=>dw.includes(w));
+      return shared.length>=3;
+    });
+    if(!found){skippedNoMatch++;return;}
+
+    const sKey=['s1','s2','s3','s4','s5','s6'][weekIdx]||'s1';
+    if(!found.qtd||found.qtd.length<6)found.qtd=[0,0,0,0,0,0];
+    if(!found.losses)found.losses={cancel:[0,0,0,0,0,0],reject:[0,0,0,0,0,0]};
+    if(found.losses.cancel.length<6)found.losses.cancel=[...found.losses.cancel,0,0].slice(0,6);
+    if(found.losses.reject.length<6)found.losses.reject=[...found.losses.reject,0,0].slice(0,6);
+
+    if(isCancelado){
+      found.losses.cancel[weekIdx]=(found.losses.cancel[weekIdx]||0)+1;
+    } else {
+      /* CONTABILIZA TUDO exceto CANCELADO (incluindo EM APROVAÇÃO, APROVADO, etc) */
+      found[sKey]=(found[sKey]||0)+val;
+      found.qtd[weekIdx]=(found.qtd[weekIdx]||0)+1;
+      if(isRejeitado){
+        found.losses.reject[weekIdx]=(found.losses.reject[weekIdx]||0)+1;
+      }
+    }
+    imported++;
+  });
+
+  console.log(`[v9] ${fname}: ${imported} contratos contabilizados | ${skippedNoMatch} sem match no time | mês detectado: ${detectedMonth||'(nenhum)'}`);
+  // Debug: total por atendente para validação
+  const totais=DATA.filter(r=>r.s1||r.s2||r.s3||r.s4).map(r=>`${r.name.split(' ')[0]}: ${(SEMANAS_BASE.reduce((s,sm)=>s+(r[sm.key]||0),0)).toFixed(2)}`);
+  if(totais.length)console.log('[v9] Totais por atendente:',totais.join(' | '));
+  if(imported===0&&RAW_ROWS.length===0)
+    throw new Error(`Nenhum registro válido encontrado no arquivo. Verifique se há coluna "R$ Vendas" e "Nome Colaborador".`);
+}
+
+/* Reconstrói SEMANAS_BASE para o mês detectado (seg→dom).
+   Atualiza activeMonthKey/Label e sincroniza com o seletor de Histórico. */
+function rebuildSemanasFromMonth(yyyymm){
+  const [y,m]=yyyymm.split('-').map(Number);
+  const first=new Date(y,m-1,1,12,0,0);
+  const last=new Date(y,m,0,12,0,0);
+  // Encontra a segunda-feira da semana que contém o dia 1
+  const dow=first.getDay(); // 0=dom..6=sab
+  const diffToMon=(dow===0?-6:1-dow);
+  const firstMon=new Date(y,m-1,1+diffToMon,12,0,0);
+  const sems=[];
+  let cur=new Date(firstMon),i=0;
+  while(cur<=last && i<6){
+    const ini=new Date(cur);
+    const fim=new Date(cur); fim.setDate(fim.getDate()+6);
+    const fmt=d=>String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0');
+    sems.push({key:'s'+(i+1),label:'Semana '+(i+1),periodo:fmt(ini)+' – '+fmt(fim),metaEquipe:3750,metaSem:340});
+    cur.setDate(cur.getDate()+7); i++;
+  }
+  SEMANAS_BASE=sems;
+  // Mapeia mês para chave do histórico
+  const mesNomes=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const slugs=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  activeMonthKey=slugs[m-1]+String(y).slice(-2);
+  activeMonthLabel=mesNomes[m-1]+'/'+String(y).slice(-2);
+  currentMonth='atual';
+}
+
+/* ──────────── DATE UTILS ──────────── */
+function normalizeDateStr(v,row){
+  if(!v)return '';
+  if(v instanceof Date)return v.toISOString().substring(0,10);
+  // SheetJS pode retornar Date objects ou strings
+  const s=String(v).trim();
+  if(/^\d{4}-\d{2}-\d{2}/.test(s))return s.substring(0,10);
+  if(/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)){
+    const parts=s.split('/');
+    const p0=parseInt(parts[0]),p1=parseInt(parts[1]);
+    if(p0>12)return `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
+    return `${parts[2]}-${parts[0].padStart(2,'0')}-${parts[1].padStart(2,'0')}`;
+  }
+  // Tenta conversão genérica
+  const d=new Date(s);
+  if(!isNaN(d.getTime()))return d.toISOString().substring(0,10);
+  return s;
+}
+
+function getWeekIdxFromDate(dateStr){
+  if(!dateStr)return 0;
+  let d;
+  const s=String(dateStr).trim();
+  if(/^\d{4}-\d{2}-\d{2}/.test(s))d=new Date(s.substring(0,10)+'T12:00:00');
+  else if(/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)){
+    const parts=s.split('/');
+    const p0=parseInt(parts[0]),p1=parseInt(parts[1]);
+    if(p0>12)d=new Date(`${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}T12:00:00`);
+    else d=new Date(`${parts[2]}-${parts[0].padStart(2,'0')}-${parts[1].padStart(2,'0')}T12:00:00`);
+  } else d=new Date(s);
+  if(!d||isNaN(d.getTime()))return 0;
+  /* Encaixa a data dentro de SEMANAS_BASE (cada semana = seg→dom). */
+  for(let i=0;i<SEMANAS_BASE.length;i++){
+    const per=SEMANAS_BASE[i].periodo||'';
+    const m=per.match(/(\d{2})\/(\d{2})\s*[–-]\s*(\d{2})\/(\d{2})/);
+    if(!m)continue;
+    const y=d.getFullYear();
+    const ini=new Date(y, parseInt(m[2])-1, parseInt(m[1]),0,0,0);
+    const fim=new Date(y, parseInt(m[4])-1, parseInt(m[3]),23,59,59);
+    // tratamento de virada de ano (dezembro→janeiro)
+    if(fim<ini) fim.setFullYear(y+1);
+    if(d>=ini&&d<=fim)return i;
+  }
+  // fallback antigo
+  const day=d.getDate();
+  if(day<=7)return 0;if(day<=14)return 1;if(day<=21)return 2;if(day<=28)return 3;
+  return Math.min(SEMANAS_BASE.length-1,4);
+}
+
+function fmtDate(s){
+  if(!s)return '—';
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)){
+    const [y,m,d]=s.split('-');
+    return `${d}/${m}/${y}`;
+  }
+  return s;
+}
+
+/* ──────────── CONFETTI ──────────── */
+function fireConfetti(){
+  if(typeof confetti!=='function')return;
+  const d=computeData().find(r=>r.pct!==null);
+  if(!d)return;
+  const el=document.getElementById('podioWrap');
+  const rect=el?.getBoundingClientRect();
+  const x=rect?(rect.left+rect.width*.5)/window.innerWidth:.5;
+  const y=rect?(rect.top+rect.height*.3)/window.innerHeight:.3;
+  confetti({particleCount:130,spread:90,origin:{x,y},colors:['#E8007D','#FF2598','#FFD700','#FFFFFF','#4A78FF','#00DFA2']});
+  setTimeout(()=>confetti({particleCount:70,spread:65,origin:{x:x-.14,y},colors:['#FFD700','#E8007D','#00DFA2']}),350);
+  setTimeout(()=>confetti({particleCount:70,spread:65,origin:{x:x+.14,y},colors:['#C8D4E8','#E8007D','#4A78FF']}),650);
+  confettiFired=true;
+}
+
+/* ──────────── NAV ──────────── */
+function goTab(el,id){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('on'));
+  document.getElementById('tab-'+id)?.classList.add('on');
+  el.classList.add('on');
+  if(id==='ranking'||id==='qualidade'){confettiFired=false;setTimeout(fireConfetti,380);}
+  // Sync aba qualidade sempre ao abrir
+  if(id==='qualidade')renderQualidade();
+  if(id==='insights')renderInsights();
+}
+
+/* ──────────── SPLASH ──────────── */
+function runSplash(cb){
+  const fill=document.getElementById('spBar');
+  const msg=document.getElementById('spMsg');
+  const msgs=['Carregando configurações...','Sincronizando dados...','Preparando métricas...','Sistema pronto!'];
+  let p=0,mi=0;
+  const iv=setInterval(()=>{
+    p=Math.min(p+(Math.random()*9+3),95);
+    if(fill)fill.style.width=p+'%';
+    if(p>25*(mi+1)&&mi<msgs.length-1){mi++;if(msg)msg.textContent=msgs[mi];}
+    if(p>=95){
+      clearInterval(iv);
+      if(fill)fill.style.width='100%';
+      setTimeout(()=>{
+        const s=document.getElementById('splash');
+        if(s){s.classList.add('out');setTimeout(()=>s.remove(),600);}
+        if(cb)cb();
+      },400);
+    }
+  },60);
+}
+
+/* ──────────── MISC ──────────── */
+setInterval(()=>{const e=document.getElementById('hClk');if(e)e.textContent=new Date().toLocaleTimeString('pt-BR');},1000);
+
+function doRefresh(){
+  const btn=document.getElementById('hRefresh');
+  btn?.classList.add('spin');
+  renderAll();
+  setTimeout(()=>btn?.classList.remove('spin'),600);
+  toast('Dashboard atualizado!');
+}
+
+// Drag & Drop
+const dz=document.getElementById('dropZone');
+if(dz){
+  dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag-over');});
+  dz.addEventListener('dragleave',()=>dz.classList.remove('drag-over'));
+  dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag-over');handleFiles(e.dataTransfer.files);});
+}
+
+/* ──────────── SINCRONIZAÇÃO REMOTA (URL) ──────────── */
+function setRemoteStatus(msg,cls){
+  const el=document.getElementById('remoteStatus');
+  if(!el)return;
+  el.textContent=msg||'—';
+  el.style.color = cls==='ok'?'var(--green)':cls==='err'?'var(--red)':'var(--tx2)';
+}
+function saveRemoteUrl(){
+  const url=document.getElementById('cfgRemoteUrl')?.value?.trim()||'';
+  CFG.remoteUrl=url;
+  saveSettings();
+  if(!url){ setRemoteStatus('URL removida — sincronização remota desativada.'); toast('URL removida.'); return; }
+  toast('🔗 URL salva. Carregando dados...');
+  loadFromRemoteUrl(true);
+}
+async function loadFromRemoteUrl(showToast){
+  const url=(CFG.remoteUrl||'').trim();
+  if(!url){ if(showToast)toast('⚠️ Configure uma URL primeiro.','err'); return; }
+  setRemoteStatus('⏳ Carregando dados de '+url.substring(0,60)+'...');
+  try{
+    const r=await fetch(url,{cache:'no-store'});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const p=await r.json();
+    if(!p||p.app!=='BI-Jacobina')throw new Error('JSON inválido (app != BI-Jacobina)');
+    if(p.cfg) CFG={...DEFAULT_CFG,...p.cfg, remoteUrl:url}; // preserva URL local
+    if(Array.isArray(p.data)&&p.data.length>0){
+      DATA=p.data;
+      DATA.forEach(r=>{
+        if(!r.losses)r.losses={cancel:[0,0,0,0,0,0],reject:[0,0,0,0,0,0]};
+        if(!r.qtd)r.qtd=[0,0,0,0,0,0];
+        if(!r.status)r.status='Ativa';
+      });
+    }
+    if(Array.isArray(p.rawRows)) RAW_ROWS=p.rawRows;
+    if(Array.isArray(p.semanas)&&p.semanas.length) SEMANAS_BASE=p.semanas;
+    if(p.activeMonthKey) activeMonthKey=p.activeMonthKey;
+    if(p.activeMonthLabel) activeMonthLabel=p.activeMonthLabel;
+    if(p.historico){ ['jan26','fev26','mar26'].forEach(k=>{ if(p.historico[k]) HISTORICO[k]=p.historico[k]; }); }
+    saveSettings(); renderAll();
+    const ts=p.exportedAt?new Date(p.exportedAt).toLocaleString('pt-BR'):'agora';
+    setRemoteStatus(`✅ Sincronizado em ${new Date().toLocaleTimeString('pt-BR')} · gerado em ${ts}`,'ok');
+    if(showToast)toast('☁️ Dashboard sincronizado da nuvem!');
+  }catch(err){
+    setRemoteStatus('❌ Erro: '+err.message,'err');
+    if(showToast)toast('❌ Falha ao carregar URL: '+err.message,'err');
+  }
+}
+function exportBackupForCloud(){
+  const payload={
+    app:'BI-Jacobina', version:8, exportedAt:new Date().toISOString(),
+    cfg:{...CFG, remoteUrl:''}, // não distribui a URL remota junto
+    data:DATA, rawRows:RAW_ROWS, semanas:SEMANAS_BASE,
+    activeMonthKey, activeMonthLabel, historico:HISTORICO,
+  };
+  const txt=JSON.stringify(payload,null,2);
+  navigator.clipboard?.writeText(txt).then(
+    ()=>toast('☁️ JSON copiado! Cole em um Gist/Dropbox e use a URL raw nas configurações.'),
+    ()=>{
+      const blob=new Blob([txt],{type:'application/json'});
+      const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+      a.download='dashboard_para_nuvem.json'; a.click();
+      toast('☁️ Arquivo baixado — faça upload no Gist/Dropbox.');
+    }
+  );
+}
+
+/* ──────────── INIT ──────────── */
+window.addEventListener('load',()=>{
+  loadSettings();
+  runSplash(()=>{
+    renderAll();
+    toast('BI Comercial v9 · Próxima Telecom · Pronto');
+    // Auto-sincronização remota se URL configurada
+    if(CFG.remoteUrl){ setTimeout(()=>loadFromRemoteUrl(false), 500); }
+  });
+});
+</script>
+</body>
+</html>
