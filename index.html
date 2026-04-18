@@ -869,6 +869,8 @@ let currentMonth = 'atual';   // 'atual' = mês detectado pela importação
 let activeMonthKey = null;    // ex: 'abr26', 'mar26' (set pelo parser)
 let activeMonthLabel = '—';   // ex: 'Abril/26'
 let confettiFired = false;
+// Mapa nome-normalizado → URL da foto (colunas Atendente + Foto URL da planilha)
+let FOTO_MAP = {};
 
 const DEFAULT_CFG = {
   metaInd:1362, metaTime:15000, metaCoord:3000, metaCoordSem:750,
@@ -892,7 +894,9 @@ const pCol = p => p===null?'var(--mu)':p>=1?'var(--green)':p>=.7?'var(--yel)':'v
 const ini  = n => { const w=(n||'?').trim().split(' '); return (w[0][0]+(w[1]?w[1][0]:'')).toUpperCase(); };
 const fName= n => { const w=(n||'').trim().split(' '); return w[0]; };
 
-/* Busca foto da atendente: 1) CFG manual 2) coluna foto do Sheets via RAW_ROWS */
+/* Busca foto da atendente:
+   1) CFG.atendentes (foto carregada manualmente na aba Config)
+   2) FOTO_MAP (colunas Atendente + Foto URL da planilha Google Sheets)  */
 function getFotoByNome(name){
   const cfg = CFG.atendentes?.[name];
   if(cfg?.foto) return cfg.foto;
@@ -900,9 +904,7 @@ function getFotoByNome(name){
     const nfd = String(s||'').trim().toUpperCase().normalize('NFD');
     let r=''; for(let i=0;i<nfd.length;i++){const cc=nfd.charCodeAt(i);if(cc<0x0300||cc>0x036f)r+=nfd[i];} return r.replace(/\s+/g,' ').trim();
   };
-  const key = normN(name);
-  const row = RAW_ROWS.find(r => r.foto && normN(r.nome) === key);
-  return row?.foto || '';
+  return FOTO_MAP[normN(name)] || '';
 }
 const set$ = (id,v) => { const e=document.getElementById(id); if(e) e.textContent=v??'—'; };
 const setH = (id,v) => { const e=document.getElementById(id); if(e) e.innerHTML=v??''; };
@@ -2966,6 +2968,31 @@ async function syncGoogleSheets(showToast){
     if(!rows.length){
       throw new Error('CSV não contém dados — verifique a aba publicada');
     }
+
+    // ── Extrai mapa Atendente → Foto URL das colunas auxiliares (I=Atendente, J=Foto URL)
+    const normNF = s => { const nfd=String(s||'').trim().toUpperCase().normalize('NFD'); let r=''; for(let i=0;i<nfd.length;i++){const cc=nfd.charCodeAt(i);if(cc<0x0300||cc>0x036f)r+=nfd[i];} return r.replace(/\s+/g,' ').trim(); };
+    // Converte link de compartilhamento do Drive em URL de thumbnail direta
+    const driveToImg = url => {
+      if(!url) return '';
+      // Formato: https://drive.google.com/file/d/FILE_ID/view?...
+      const m = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+      if(m) return `https://drive.google.com/thumbnail?id=${m[1]}&sz=s200`;
+      // Formato: https://drive.google.com/open?id=FILE_ID
+      const m2 = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+      if(m2) return `https://drive.google.com/thumbnail?id=${m2[1]}&sz=s200`;
+      return url; // já é uma URL direta
+    };
+    FOTO_MAP = {};
+    rows.forEach(row => {
+      // Aceita variações do cabeçalho: "Atendente", "Foto URL", "FotoURL", "foto url", etc.
+      const atendente = String(row['Atendente'] || row['atendente'] || row['ATENDENTE'] || '').trim();
+      const fotoUrl   = String(row['Foto URL']  || row['FotoURL']  || row['foto url']  || row['foto_url'] || row['Foto Url'] || row['FOTO URL'] || '').trim();
+      if(atendente && fotoUrl){
+        FOTO_MAP[normNF(atendente)] = driveToImg(fotoUrl);
+      }
+    });
+    const fotoCount = Object.keys(FOTO_MAP).length;
+    console.log(`[GS] FOTO_MAP: ${fotoCount} foto(s) mapeada(s)`, FOTO_MAP);
 
     // Detecta esquema e processa
     if(hasStructuredSchema(rows)){
