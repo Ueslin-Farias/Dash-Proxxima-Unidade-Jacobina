@@ -466,9 +466,9 @@ body>*{position:relative;z-index:1}
   </div>
   <div class="gc" style="padding:18px">
     <div class="sh">
-      📋 Ranking Completo — Meta × Realizado × Perdas
+      📋 Ranking Completo — Meta × Aprovado × Perdas
       <select class="f-sel" id="rankFilter" onchange="renderRanking()" style="margin-left:auto;font-size:11px">
-        <option value="receita">Ordenar: Receita</option>
+        <option value="receita">Ordenar: Aprovado (R$)</option>
         <option value="qtd">Ordenar: Quantidade</option>
         <option value="pct">Ordenar: % Meta</option>
       </select>
@@ -479,10 +479,10 @@ body>*{position:relative;z-index:1}
           <tr>
             <th>Pos</th><th>Colaboradora</th>
             <th>S1</th><th>S2</th><th>S3</th><th>S4</th>
-            <th>Total R$</th><th>Qtd</th>
+            <th style="color:var(--green)">✅ Aprovado R$</th><th>Qtd Aprov.</th>
             <th>Meta Mensal</th><th>Meta Semanal</th>
-            <th>% Meta</th><th>Perdas ⚠️</th><th>⏳ Aprov.</th>
-            <th>✅ Aprovados</th>
+            <th>% Meta</th><th>Perdas ⚠️</th><th>⏳ Pend.</th>
+            <th title="Todos os status Abril/2026">Bruto (info)</th>
             <th>Progresso</th><th>Status</th>
           </tr>
         </thead>
@@ -1008,34 +1008,109 @@ function loadSettings(){
   }
 }
 
-/* ──────────── COMPUTED ──────────── */
+/* ──────────── COMPUTED (v15 · Ranking corrigido) ──────────────────────────
+   FONTE DE VERDADE: RAW_ROWS — já filtrado para Abril/2026 pelos processadores.
+
+   CORREÇÃO 1 — Unificação de nomes: normR() aplica .trim().toUpperCase() + sem
+     acentos em TODOS os nomes antes de qualquer comparação ou soma. Isso garante
+     que "Aline", "ALINE" e "aline " sejam tratadas como a mesma pessoa.
+
+   CORREÇÃO 2 — Soma apenas de Abril/2026: RAW_ROWS já contém exclusivamente
+     registros de Abril/2026 (pré-filtro do processador). Nenhum resíduo de outro
+     mês pode inflar o valor — a soma é feita diretamente sobre esse array limpo.
+
+   CORREÇÃO 3 — Ranking mostra apenas APROVADO: `aprovadoVal` / `aprovadoQtd` são
+     calculados filtrando `estagio === 'APROVADO'`. O campo `total` usado para
+     ordenar e exibir no ranking É o aprovadoVal — não o bruto. Cancelados,
+     rejeitados e pendentes NÃO entram no total do ranking.
+   ─────────────────────────────────────────────────────────────────────────── */
 function computeData(){
+  /* normR: CORREÇÃO 1 — UPPERCASE + trim() + sem acentos em todo ponto de comparação */
+  const normR = s => {
+    const nfd = String(s||'').trim().toUpperCase().normalize('NFD');
+    let x = '';
+    for(let i=0;i<nfd.length;i++){const cc=nfd.charCodeAt(i);if(cc<0x0300||cc>0x036f)x+=nfd[i];}
+    return x.replace(/\s+/g,' ').trim();
+  };
+
   return DATA.map(r=>{
-    /* Soma TODAS as semanas dinâmicas de SEMANAS_BASE (até 6) */
-    const total=SEMANAS_BASE.reduce((s,sm)=>s+(r[sm.key]||0),0);
-    const totalQtd=(r.qtd||[]).reduce((a,b)=>a+(b||0),0);
-    const active=isActive(r);
-    /* FIX 2: meta real para cálculo de pct (nunca zerá-lo por status).
-       metaDisplay=0 para não-ativa (aparece no card como "sem meta").
-       pct SEMPRE calculado se metaReal>0 — faturamento é intocável.       */
-    const metaReal=(r.metaInd??CFG.metaInd??1362)||CFG.metaInd||1362;
-    const metaDisplay=active?metaReal:0;        // KPI do time soma 0 para afastadas
-    const p=metaReal>0?total/metaReal:null;     // pct calculado sempre
-    const totalLoss=((r.losses?.cancel||[]).reduce((a,b)=>a+b,0))+((r.losses?.reject||[]).reduce((a,b)=>a+b,0));
-    const totalEmAprov=(r.emAprov||[]).reduce((a,b)=>a+(b||0),0);
-    /* NOVO: aprovadoVal e aprovadoQtd — calculados diretamente do RAW_ROWS */
-    const normR=s=>{const nfd=String(s||'').trim().toUpperCase().normalize('NFD');let x='';for(let i=0;i<nfd.length;i++){const cc=nfd.charCodeAt(i);if(cc<0x0300||cc>0x036f)x+=nfd[i];}return x.replace(/\s+/g,' ').trim();};
-    const rn=normR(r.name);
-    const aprovRows=RAW_ROWS.filter(rw=>rw.estagio==='APROVADO'&&normR(rw.nome)===rn);
-    const aprovadoVal=aprovRows.reduce((s,rw)=>s+(rw.valor||0),0);
-    const aprovadoQtd=aprovRows.length;
-    /* NOVO: faturamento bruto — todos os status somados */
-    const faturamentoBruto=RAW_ROWS.filter(rw=>normR(rw.nome)===rn).reduce((s,rw)=>s+(rw.valor||0),0);
-    return {...r,total,totalQtd,meta:metaDisplay,metaReal,pct:p,totalLoss,totalEmAprov,aprovadoVal,aprovadoQtd,faturamentoBruto};
+    const active = isActive(r);
+    const rn     = normR(r.name);  // nome normalizado: "VANESSA SOARES SOUSA"
+
+    /* ── CORREÇÃO 2+3: filtra RAW_ROWS (já é Abril/2026) por nome + status ──
+       aprovRows: somente estagio==='APROVADO' → valor real do ranking / financeiro
+       brutoRows: todos os status → faturamento bruto (informativo)               */
+    const aprovRows    = RAW_ROWS.filter(rw => rw.estagio === 'APROVADO' && normR(rw.nome) === rn);
+    const brutoRows    = RAW_ROWS.filter(rw => normR(rw.nome) === rn);
+    const cancelRows   = RAW_ROWS.filter(rw => rw.estagio === 'CANCELADO'   && normR(rw.nome) === rn);
+    const rejeitRows   = RAW_ROWS.filter(rw => rw.estagio === 'REJEITADO'   && normR(rw.nome) === rn);
+    const emAprovRows  = RAW_ROWS.filter(rw => rw.estagio === 'EM APROVAÇÃO'&& normR(rw.nome) === rn);
+
+    /* CORREÇÃO 3: total = soma dos APROVADOS (é o valor que vai para o ranking) */
+    const aprovadoVal  = aprovRows.reduce((s,rw) => s+(rw.valor||0), 0);
+    const aprovadoQtd  = aprovRows.length;
+
+    /* Faturamento bruto = todos os status (informativo, não entra no ranking) */
+    const faturamentoBruto = brutoRows.reduce((s,rw) => s+(rw.valor||0), 0);
+
+    /* total = aprovadoVal: ÚNICA fonte de verdade para ranking, pódio, KPI e % meta */
+    const total = aprovadoVal;
+
+    /* Quantidade total de contratos Abril/2026 (todos os status) */
+    const totalQtd = brutoRows.length;
+
+    /* Perdas contadas por semana a partir de RAW_ROWS (CORREÇÃO 2: só Abril/2026) */
+    /* Mantém também os arrays legados losses[] / emAprov[] para compatibilidade   */
+    const totalLoss    = cancelRows.length + rejeitRows.length;
+    const totalEmAprov = emAprovRows.length;
+
+    /* % de meta: baseada no aprovadoVal vs metaReal */
+    const metaReal    = (r.metaInd ?? CFG.metaInd ?? 1362) || CFG.metaInd || 1362;
+    const metaDisplay = active ? metaReal : 0;
+    const p           = metaReal > 0 ? total / metaReal : null;
+
+    /* Valores por semana para gráficos (mantém compatibilidade com SEMANAS_BASE) */
+    /* Recalcula s1..s6 a partir de RAW_ROWS APROVADOS para garantir consistência */
+    const semVals = {};
+    const semQtds = {};
+    SEMANAS_BASE.forEach((sm, i) => {
+      const sAprov = aprovRows.filter(rw => rw.semana === i);
+      semVals[sm.key] = sAprov.reduce((s,rw)=>s+(rw.valor||0),0);
+      semQtds[i]      = sAprov.length;
+    });
+
+    /* Arrays de perdas por semana (para gráficos de qualidade) */
+    const cancelBySem = Array(6).fill(0);
+    const rejeitBySem = Array(6).fill(0);
+    const emAprovBySem= Array(6).fill(0);
+    cancelRows.forEach(rw  => { if(rw.semana>=0&&rw.semana<6) cancelBySem[rw.semana]++; });
+    rejeitRows.forEach(rw  => { if(rw.semana>=0&&rw.semana<6) rejeitBySem[rw.semana]++; });
+    emAprovRows.forEach(rw => { if(rw.semana>=0&&rw.semana<6) emAprovBySem[rw.semana]++; });
+
+    const qtdBySem = Array(6).fill(0);
+    aprovRows.forEach(rw => { if(rw.semana>=0&&rw.semana<6) qtdBySem[rw.semana]++; });
+
+    return {
+      ...r,
+      ...semVals,            // s1..s6 recalculados com APROVADOS
+      qtd:      qtdBySem,
+      losses:   { cancel: cancelBySem, reject: rejeitBySem },
+      emAprov:  emAprovBySem,
+      total,                 // = aprovadoVal  ← RANKING / KPI / PÓDIO
+      totalQtd,
+      meta:       metaDisplay,
+      metaReal,
+      pct:        p,
+      totalLoss,
+      totalEmAprov,
+      aprovadoVal,           // alias explícito
+      aprovadoQtd,
+      faturamentoBruto,      // todos os status (informativo)
+    };
   }).sort((a,b)=>{
-    if(isActive(a)&&!isActive(b))return -1;
-    if(!isActive(a)&&isActive(b))return 1;
-    return (b.total||0)-(a.total||0);    // ordena por total quando pct igual
+    if(isActive(a)&&!isActive(b)) return -1;
+    if(!isActive(a)&&isActive(b)) return  1;
+    return (b.total||0)-(a.total||0);  // ordena por aprovadoVal desc
   });
 }
 
@@ -1157,44 +1232,69 @@ function renderVisaoChart(){
   });
 }
 
-/* ──────────── RANKING ──────────── */
+/* ──────────── RANKING (v15 · Corrigido) ───────────────────────────────────
+   CORREÇÃO 1: r.name exibido limpo mas os valores vêm de computeData() que
+     já usou normR() para unificar todas as variações de nome.
+   CORREÇÃO 2: todos os valores vêm de RAW_ROWS (já é só Abril/2026).
+   CORREÇÃO 3: coluna "Total" e ordenação = aprovadoVal (somente APROVADO).
+               Bruto exibido como coluna informativa separada.
+   ─────────────────────────────────────────────────────────────────────────── */
 function renderRanking(){
-  const d=computeData();
-  const mode=document.getElementById('rankFilter')?.value||'receita';
-  const sorted=[...d].sort((a,b)=>{
-    if(isActive(a)&&!isActive(b))return -1;
-    if(!isActive(a)&&isActive(b))return 1;
-    if(mode==='qtd')return b.totalQtd-a.totalQtd;
-    if(mode==='pct')return (b.pct||0)-(a.pct||0);
-    return b.total-a.total;
+  const d    = computeData();
+  const mode = document.getElementById('rankFilter')?.value || 'receita';
+
+  const sorted = [...d].sort((a,b)=>{
+    if(isActive(a)&&!isActive(b)) return -1;
+    if(!isActive(a)&&isActive(b)) return  1;
+    if(mode==='qtd') return b.aprovadoQtd - a.aprovadoQtd;
+    if(mode==='pct') return (b.pct||0) - (a.pct||0);
+    return (b.aprovadoVal||0) - (a.aprovadoVal||0);  // padrão: ordena por APROVADO
   });
-  const tb=document.getElementById('rtBody');
-  if(!tb)return;
-  let pos=0;
-  tb.innerHTML=sorted.map(r=>{
-    const active=isActive(r);
-    if(active)pos++;
-    /* FIX 2e: pct calculado para TODOS — não bloquear barra por status */
-    const p=r.pct!==null?Math.min(r.pct,1):0;
-    const pT=r.pct!==null?fP(r.pct*100):'—';         // sempre mostra % real
-    const cl=pos===1?'p1':pos===2?'p2':pos===3?'p3':'pn';
-    const co=pCol(r.pct);
-    const totalLoss=(r.losses?.cancel||[]).reduce((a,b)=>a+b,0)+(r.losses?.reject||[]).reduce((a,b)=>a+b,0);
-    const lossCell=totalLoss>2
-      ?`<span class="alert-tag">⚠️ ${totalLoss}</span>`
-      :totalLoss>0
-        ?`<span class="warn-tag">⚠️ ${totalLoss}</span>`
-        :`<span style="color:var(--green);font-size:11px">✓ 0</span>`;
-    /* FIX 3g: célula de Em Aprovação */
-    const emAprovTotal=r.totalEmAprov||0;
-    const emAprovCell=emAprovTotal>0
-      ?`<span class="warn-tag" style="background:var(--yd);color:var(--yel)">⏳ ${emAprovTotal}</span>`
-      :`<span style="color:var(--mu);font-size:11px">—</span>`;
-    const metaSemVal=r.metaSem||CFG.metaSem||340;
-    // Semana atual: última com dados
-    const semKeys=['s1','s2','s3','s4'];
-    let currSemVal=0;
-    for(let i=3;i>=0;i--){if(r[semKeys[i]]>0){currSemVal=r[semKeys[i]];break;}}
+
+  const tb = document.getElementById('rtBody');
+  if(!tb) return;
+
+  let pos = 0;
+  tb.innerHTML = sorted.map(r => {
+    const active = isActive(r);
+    if(active) pos++;
+
+    const p   = r.pct !== null ? Math.min(r.pct, 1) : 0;
+    const pT  = r.pct !== null ? fP(r.pct * 100)    : '—';
+    const cl  = pos===1?'p1':pos===2?'p2':pos===3?'p3':'pn';
+    const co  = pCol(r.pct);
+
+    const totalLoss = (r.losses?.cancel||[]).reduce((a,b)=>a+b,0)
+                    + (r.losses?.reject||[]).reduce((a,b)=>a+b,0);
+    const lossCell  = totalLoss > 2
+      ? `<span class="alert-tag">⚠️ ${totalLoss}</span>`
+      : totalLoss > 0
+        ? `<span class="warn-tag">⚠️ ${totalLoss}</span>`
+        : `<span style="color:var(--green);font-size:11px">✓ 0</span>`;
+
+    const emAprovTotal = r.totalEmAprov || 0;
+    const emAprovCell  = emAprovTotal > 0
+      ? `<span class="warn-tag" style="background:var(--yd);color:var(--yel)">⏳ ${emAprovTotal}</span>`
+      : `<span style="color:var(--mu);font-size:11px">—</span>`;
+
+    const metaSemVal = r.metaSem || CFG.metaSem || 340;
+
+    // Semana com dados mais recentes (baseada em s1..s6 recalculados)
+    const semKeys = SEMANAS_BASE.map(s=>s.key);
+    let currSemVal = 0;
+    for(let i = semKeys.length-1; i >= 0; i--){
+      if((r[semKeys[i]]||0) > 0){ currSemVal = r[semKeys[i]]; break; }
+    }
+
+    // CORREÇÃO 3: exibe aprovadoVal como "Total Aprovado" — o valor que bate com o financeiro
+    const aprovValCell = `<span style="color:var(--green);font-weight:700">${brl(r.aprovadoVal||0)}</span>
+      <br><span style="color:var(--mu);font-size:10px">${r.aprovadoQtd||0} ctrs</span>`;
+
+    // Bruto informativo (todos os status Abril/2026)
+    const brutoCell = r.faturamentoBruto > 0
+      ? `<span style="color:var(--tx2);font-size:11px">${brl(r.faturamentoBruto)}</span>`
+      : `<span style="color:var(--mu);font-size:11px">—</span>`;
+
     return `<tr class="${pos<=3&&active?'top3':''}">
       <td><span class="pos ${active?cl:'pn'}">${active?pos:'—'}</span></td>
       <td style="font-weight:600;font-size:12px">${r.name.split(' ').slice(0,2).join(' ')}</td>
@@ -1202,20 +1302,47 @@ function renderRanking(){
       <td style="font-size:11px">${brlK(r.s2||0)}</td>
       <td style="font-size:11px">${brlK(r.s3||0)}</td>
       <td style="font-size:11px">${brlK(r.s4||0)}</td>
-      <td style="font-weight:700">${brl(r.total)}</td>
-      <td style="color:var(--tx2)">${r.totalQtd||0}</td>
-      <td><div class="meta-badge"><span class="meta-badge-real">${brl(r.total)}</span><span class="meta-badge-meta">Meta: ${active?brl(r.metaReal||r.meta):'Afastada'}</span></div></td>
-      <td><div class="meta-badge"><span class="meta-badge-real">${brlK(currSemVal)}</span><span class="meta-badge-sem">Meta: ${active?brlK(metaSemVal):'—'}</span></div></td>
+      <td style="font-weight:700;color:var(--green)">${brl(r.aprovadoVal||0)}</td>
+      <td style="color:var(--tx2)">${r.aprovadoQtd||0}</td>
+      <td><div class="meta-badge">
+        <span class="meta-badge-real">${brl(r.aprovadoVal||0)}</span>
+        <span class="meta-badge-meta">Meta: ${active?brl(r.metaReal||r.meta):'Afastada'}</span>
+      </div></td>
+      <td><div class="meta-badge">
+        <span class="meta-badge-real">${brlK(currSemVal)}</span>
+        <span class="meta-badge-sem">Meta: ${active?brlK(metaSemVal):'—'}</span>
+      </div></td>
       <td style="font-weight:700;color:${co}">${pT}</td>
-      <td>${lossCell}</td><td>${emAprovCell}</td>
-      <td style="color:var(--green);font-weight:700;font-size:11px">${brl(r.aprovadoVal||0)}<br><span style="color:var(--mu);font-weight:400">${r.aprovadoQtd||0} ctrs</span></td>
+      <td>${lossCell}</td>
+      <td>${emAprovCell}</td>
+      <td>${brutoCell}</td>
       <td><div class="mbar"><div class="mbar-f" style="width:${(p*100).toFixed(0)}%;background:${co}"></div></div></td>
       <td>${statusTag(r.pct,r.status)}</td>
     </tr>`;
   }).join('');
-}
 
-/* ──────────── PÓDIO ──────────── */
+  // LOG DE CONFERÊNCIA DO RANKING — abre o console e cruza com o Excel
+  const rankLog = sorted.filter(r=>isActive(r)).map((r,i)=>{
+    const pad=(s,n)=>(s+'').padEnd(n);
+    return `  ${pad((i+1)+'.',3)} ${pad(r.name.split(' ').slice(0,2).join(' '),28)} ` +
+           `APROVADO: R$${(r.aprovadoVal||0).toFixed(2).padStart(9)} (${r.aprovadoQtd||0} ctrs) | ` +
+           `BRUTO: R$${(r.faturamentoBruto||0).toFixed(2).padStart(9)}`;
+  });
+  if(rankLog.length){
+    console.log('');
+    console.log('╔═══════════════════════════════════════════════════════════════════╗');
+    console.log('║  RANKING v15 · Abril/2026 · APROVADO × BRUTO (conferir Excel)    ║');
+    console.log('╠═══════════════════════════════════════════════════════════════════╣');
+    rankLog.forEach(l=>console.log(l));
+    const totAprov=sorted.filter(r=>isActive(r)).reduce((s,r)=>s+(r.aprovadoVal||0),0);
+    const totBruto=sorted.filter(r=>isActive(r)).reduce((s,r)=>s+(r.faturamentoBruto||0),0);
+    console.log('╠═══════════════════════════════════════════════════════════════════╣');
+    console.log(`  TOTAL APROVADO (time ativo): R$ ${totAprov.toFixed(2)}`);
+    console.log(`  TOTAL BRUTO    (time ativo): R$ ${totBruto.toFixed(2)}`);
+    console.log('╚═══════════════════════════════════════════════════════════════════╝');
+    console.log('');
+  }
+}
 function renderPodio(d){
   /* FIX 2f: incluir não-ativas com pct calculado no pódio */
   const top=(d||computeData()).filter(r=>r.pct!==null&&r.total>0).slice(0,3);
