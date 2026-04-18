@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Próxima Telecom · BI Jacobina v12 · Google Sheets</title>
+<title>Próxima Telecom · BI Jacobina v14 · Google Sheets</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -795,7 +795,12 @@ body>*{position:relative;z-index:1}
        Tags ⚠️ dinâmicas de atenção (canc + rejeit)
 ═════════════════════════════════════════════ */
 
-const STORAGE_KEY = 'dash_prox_v12';
+/* ══ v14 · RESET TOTAL DE CACHE ══════════════════════════════════════════════
+   localStorage.clear() elimina QUALQUER dado de projetos/versões anteriores.
+   Executado ANTES de qualquer leitura, garante estado 100% limpo.          */
+localStorage.clear();
+
+const STORAGE_KEY = 'dash_prox_v14';
 
 /* ──────────── BASE MESTRA ──────────── */
 /* RECALCULADA: somente registros com estagio=APROVADO somam ao faturamento.
@@ -868,6 +873,7 @@ const DEFAULT_CFG = {
   colReceita:'R$ Vendas',
   colEstagio:'Estágio Contrato Proxxima',
   colData:'Date (Data Venda Contrato Proxxima)',
+  // CORREÇÃO 5 — URL oficial sempre forçada (não deixa cache sobrescrever)
   remoteUrl:'https://docs.google.com/spreadsheets/d/e/2PACX-1vQRyBLzWAGIjsrm-s84rVUQ1yQaHmUYYOT469RSF-fxfwp7Q5M0_zwT6eTCeBiASNyrfA314pehjKY_/pub?gid=86460305&single=true&output=csv', autoRefreshMin:5,
   atendentes:{},
 };
@@ -949,6 +955,8 @@ function loadSettings(){
     if(raw){
       const p=JSON.parse(raw);
       CFG={...DEFAULT_CFG,...(p.cfg||{})};
+      // CORREÇÃO 5 — Sempre forçar a URL oficial, independente do que estiver salvo
+      CFG.remoteUrl = DEFAULT_CFG.remoteUrl;
 
       /* Verifica se o localStorage tem dados reais (alguém importou um XLSX nessa sessão) */
       const hasRealData=Array.isArray(p.rawRows)&&p.rawRows.length>0
@@ -1743,11 +1751,16 @@ function saveConfig(){
   startGsAutoRefresh(ar);
   // sync gs url input
   const gsI=document.getElementById('gsUrlInput'); if(gsI) gsI.value=CFG.remoteUrl||'';
+  // CORREÇÃO 4 — Períodos manuais: salva input do usuário e marca como editado
+  // getWeekIdxFromDate usará esses valores diretamente (sem recalcular por calendário)
   SEMANAS_BASE.forEach((s,i)=>{
-    const p=document.getElementById(`sPer${i}`)?.value;
-    const m=parseFloat(document.getElementById(`sMeta${i}`)?.value);
-    const ms=parseFloat(document.getElementById(`sMetaInd${i}`)?.value);
-    if(p)s.periodo=p;if(m)s.metaEquipe=m;if(ms)s.metaSem=ms;
+    const pEl = document.getElementById(`sPer${i}`);
+    const p   = pEl?.value?.trim();
+    const m   = parseFloat(document.getElementById(`sMeta${i}`)?.value);
+    const ms  = parseFloat(document.getElementById(`sMetaInd${i}`)?.value);
+    if(p){ s.periodo = p; s._userEdited = true; } // flag: não sobrescrever no próximo sync
+    if(m)  s.metaEquipe = m;
+    if(ms) s.metaSem    = ms;
   });
   DATA.forEach(r=>{
     const cfgA=CFG.atendentes?.[r.name];
@@ -2036,22 +2049,16 @@ function processRows(rows,fname,colMap){
     return k?row[k]:'';
   };
 
-  /* PASS 1 — descobre o mês predominante (votação por contagem de datas válidas) */
-  const monthVotes={};
+  // PASS 1 — Forçar Abril/2026. Sem votação de mês — estrito.
+  const ABRIL_YYYY_MM = '2026-04';
   const dateCache=[];
   for(const row of rows){
     const dRaw=getField(row,[CFG.colData||'Date (Data Venda Contrato Proxxima)','Date (Data Venda Contrato Proxxima)','Data Venda','date','Data']);
     const ds=normalizeDateStr(dRaw,row);
     dateCache.push(ds);
-    if(/^\d{4}-\d{2}-\d{2}/.test(ds)){
-      const k=ds.substring(0,7); // YYYY-MM
-      monthVotes[k]=(monthVotes[k]||0)+1;
-    }
   }
-  let detectedMonth=Object.keys(monthVotes).sort((a,b)=>monthVotes[b]-monthVotes[a])[0]||null;
-  if(detectedMonth){
-    rebuildSemanasFromMonth(detectedMonth);
-  }
+  let detectedMonth = ABRIL_YYYY_MM;
+  rebuildSemanasFromMonth(ABRIL_YYYY_MM);
 
   /* PASS 2 — reset e contabiliza */
   DATA.forEach(r=>{
@@ -2064,7 +2071,8 @@ function processRows(rows,fname,colMap){
   let imported=0,skippedUnit=0,skippedNoMatch=0;
 
   rows.forEach((row,ri)=>{
-    const nameRaw=String(getField(row,[CFG.colNome||'Nome Colaborador','Nome Colaborador','Nome','nome'])||'').trim();
+    // CORREÇÃO 3 — trim().toUpperCase() para unificar nomes com espaço/caixa diferente
+    const nameRaw=String(getField(row,[CFG.colNome||'Nome Colaborador','Nome Colaborador','Nome','nome'])||'').trim().toUpperCase();
     if(!nameRaw)return;
 
     /* v8: SEM filtro de unidade — qualquer linha com nome é processada */
@@ -2074,6 +2082,11 @@ function processRows(rows,fname,colMap){
     const statusRawField=String(getField(row,['Status Contrato Proxxima','Status','Tipo'])||'').trim();
     const tipoRaw=String(getField(row,['Tipo','tipo'])||'').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
     const dateStr=dateCache[ri];
+
+    // CORREÇÃO 2 — Filtro estrito Abril/2026: descarta qualquer registro fora de /04/2026
+    if(!dateStr || !/^\d{4}-\d{2}-\d{2}/.test(dateStr)) return;
+    if(dateStr.substring(0,7) !== ABRIL_YYYY_MM) return;
+
     const weekIdx=getWeekIdxFromDate(dateStr);
 
     const val=parseVal(valRaw);
@@ -2097,13 +2110,9 @@ function processRows(rows,fname,colMap){
 
     const estagioLabel=isCancelado?'CANCELADO':isRejeitado?'REJEITADO':isPerda?'PERDA':isEmAprov?'EM APROVAÇÃO':isAprovado?'APROVADO':estagioNorm||statusNorm;
 
-    /* FILTRO DE MÊS: apenas registros do mês detectado entram no RAW_ROWS */
-    if(detectedMonth && dateStr && /^\d{4}-\d{2}-\d{2}/.test(dateStr)){
-      const rowMonth=dateStr.substring(0,7);
-      if(rowMonth!==detectedMonth){ return; } // descarta meses diferentes (ex: março não entra em abril)
-    }
-
     RAW_ROWS.push({nome:nameRaw,valor:val,estagio:estagioLabel,data:dateStr,semana:weekIdx});
+
+    // Filtro de Abril/2026 já aplicado acima — não é necessário filtrar aqui
 
     /* CORREÇÃO 9e: match de nome — normStr agora é UPPERCASE sem acentos */
     const nameN=normStr(nameRaw);
@@ -2151,12 +2160,14 @@ function processRows(rows,fname,colMap){
 
 /* Reconstrói SEMANAS_BASE para o mês detectado (seg→dom).
    Atualiza activeMonthKey/Label e sincroniza com o seletor de Histórico. */
+/* Reconstrói SEMANAS_BASE para o mês (seg→dom).
+   v14: se o usuário já editou o período de uma semana (_userEdited=true),
+   esse valor É MANTIDO — getWeekIdxFromDate usará o input da Aba Config.   */
 function rebuildSemanasFromMonth(yyyymm){
   const [y,m]=yyyymm.split('-').map(Number);
   const first=new Date(y,m-1,1,12,0,0);
   const last=new Date(y,m,0,12,0,0);
-  // Encontra a segunda-feira da semana que contém o dia 1
-  const dow=first.getDay(); // 0=dom..6=sab
+  const dow=first.getDay();
   const diffToMon=(dow===0?-6:1-dow);
   const firstMon=new Date(y,m-1,1+diffToMon,12,0,0);
   const sems=[];
@@ -2165,11 +2176,19 @@ function rebuildSemanasFromMonth(yyyymm){
     const ini=new Date(cur);
     const fim=new Date(cur); fim.setDate(fim.getDate()+6);
     const fmt=d=>String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0');
-    sems.push({key:'s'+(i+1),label:'Semana '+(i+1),periodo:fmt(ini)+' – '+fmt(fim),metaEquipe:3750,metaSem:340});
+    const existing = SEMANAS_BASE[i] || {};
+    // Preserva o que o usuário digitou manualmente — só usa calendário se não editado
+    sems.push({
+      key:       's'+(i+1),
+      label:     'Semana '+(i+1),
+      periodo:   existing._userEdited ? existing.periodo : (fmt(ini)+' – '+fmt(fim)),
+      metaEquipe:existing.metaEquipe || 3750,
+      metaSem:   existing.metaSem    || 340,
+      _userEdited: existing._userEdited || false,
+    });
     cur.setDate(cur.getDate()+7); i++;
   }
   SEMANAS_BASE=sems;
-  // Mapeia mês para chave do histórico
   const mesNomes=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   const slugs=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
   activeMonthKey=slugs[m-1]+String(y).slice(-2);
@@ -2227,44 +2246,57 @@ function normalizeDateStr(v,row){
   return s;
 }
 
+/* ── getSemana / getWeekIdxFromDate ─────────────────────────────────────────
+   v14: Usa ESTRITAMENTE os períodos configurados na Aba Config (SEMANAS_BASE).
+   Se a data da venda estiver entre Início e Fim da Semana N → vai para Semana N.
+   ZERO cálculo automático de calendário — tudo vem dos inputs do usuário.
+   Formato dos períodos: "DD/MM – DD/MM"  (ex: "30/03 – 05/04")
+   O ano é inferido a partir do próprio dateStr para suportar virada de mês.  */
 function getWeekIdxFromDate(dateStr){
-  if(!dateStr)return 0;
-  let d;
-  const s=String(dateStr).trim();
-  /* CORREÇÃO 7: parse de data SEMPRE como YYYY-MM-DD (já normalizado por normalizeDateStr).
-     O fallback DD/MM/AAAA aqui interpretava parts[0] como mês e parts[1] como dia
-     (formato americano) — corrigido para sempre tratar como DD/MM/AAAA (padrão Brasil). */
-  if(/^\d{4}-\d{2}-\d{2}/.test(s)){
-    d=new Date(s.substring(0,10)+'T12:00:00');
-  } else if(/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)){
-    const parts=s.split('/');
-    // SEMPRE DD/MM/AAAA (padrão Brasil) — não assumir MM/DD
-    d=new Date(`${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}T12:00:00`);
-  } else {
-    d=new Date(s.includes('T')?s:s+'T12:00:00');
-  }
-  if(!d||isNaN(d.getTime()))return 0;
+  if(!dateStr) return 0;
+  const s = String(dateStr).trim();
 
-  /* Encaixa a data dentro de SEMANAS_BASE (cada semana = seg→dom). */
-  for(let i=0;i<SEMANAS_BASE.length;i++){
-    const per=SEMANAS_BASE[i].periodo||'';
-    const m=per.match(/(\d{2})\/(\d{2})\s*[–-]\s*(\d{2})\/(\d{2})/);
-    if(!m)continue;
-    const y=d.getFullYear();
-    const ini=new Date(y, parseInt(m[2])-1, parseInt(m[1]),0,0,0);
-    const fim=new Date(y, parseInt(m[4])-1, parseInt(m[3]),23,59,59);
-    // tratamento de virada de mês (ex: semana que cruza jan→fev)
-    if(fim<ini) fim.setFullYear(y+1);
-    if(d>=ini&&d<=fim)return i;
+  // Parseia a data alvo no formato ISO (já normalizado por normalizeDateStr)
+  let targetDate;
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)){
+    targetDate = new Date(s.substring(0,10) + 'T12:00:00');
+  } else if(/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)){
+    const p = s.split('/');
+    targetDate = new Date(`${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}T12:00:00`);
+  } else {
+    targetDate = new Date(s.includes('T') ? s : s + 'T12:00:00');
   }
-  /* CORREÇÃO 7b: fallback por intervalos de dias do mês — só acionado se SEMANAS_BASE
-     não tiver períodos (situação rara). Antes usava <=7, <=14, <=21, <=28 o que
-     colocava datas como dia 1 do mês sempre na Semana 1 mesmo que a Semana 1 do
-     calendário começasse em outra data. Agora usa divisão proporcional. */
-  const day=d.getDate();
-  const totalDays=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();
-  const semCount=Math.max(1,SEMANAS_BASE.length);
-  return Math.min(semCount-1, Math.floor((day-1)/(totalDays/semCount)));
+  if(!targetDate || isNaN(targetDate.getTime())) return 0;
+
+  const tYear = targetDate.getFullYear();
+
+  // Testa cada semana da Aba Config (SEMANAS_BASE) em ordem
+  for(let i = 0; i < SEMANAS_BASE.length; i++){
+    const per = (SEMANAS_BASE[i].periodo || '').trim();
+    // Formato esperado: "DD/MM – DD/MM"  (aceita – ou -)
+    const m = per.match(/^(\d{1,2})\/(\d{1,2})\s*[–\-]\s*(\d{1,2})\/(\d{1,2})$/);
+    if(!m) continue;
+
+    const dIni = parseInt(m[1],10);
+    const mIni = parseInt(m[2],10);
+    const dFim = parseInt(m[3],10);
+    const mFim = parseInt(m[4],10);
+
+    // Constrói datas de início e fim usando o ano da data alvo
+    let iniDate = new Date(tYear, mIni-1, dIni, 0, 0, 0);
+    let fimDate = new Date(tYear, mFim-1, dFim, 23, 59, 59);
+
+    // Virada de ano: se fim < ini, fim pertence ao próximo ano
+    if(fimDate < iniDate) fimDate.setFullYear(tYear + 1);
+
+    if(targetDate >= iniDate && targetDate <= fimDate) return i;
+  }
+
+  // Fallback proporcional — só acionado se SEMANAS_BASE não tiver períodos válidos
+  const day = targetDate.getDate();
+  const totalDays = new Date(targetDate.getFullYear(), targetDate.getMonth()+1, 0).getDate();
+  const semCount = Math.max(1, SEMANAS_BASE.length);
+  return Math.min(semCount-1, Math.floor((day-1) / (totalDays / semCount)));
 }
 
 function fmtDate(s){
@@ -2512,20 +2544,18 @@ function processStructuredRows(rows, source){
     return s;
   };
 
-  // PASS 1: detect dominant month
-  const monthVotes = {};
+  // PASS 1: normaliza datas e FILTRA estritamente Abril/2026
+  // Aceita: YYYY-04-2026 (ISO) ou DD/04/2026 (Brasil) — month index 3 (abril)
+  const ABRIL_YYYY_MM = '2026-04';
   const dateCache = [];
   for(const row of rows){
     const dRaw = findCol(row,['Data Venda','DataVenda','data_venda','data','date']);
     const ds = normalizeDateStr(dRaw, row);
     dateCache.push(ds);
-    if(/^\d{4}-\d{2}-\d{2}/.test(ds)){
-      const k = ds.substring(0,7);
-      monthVotes[k] = (monthVotes[k]||0)+1;
-    }
   }
-  const detectedMonth = Object.keys(monthVotes).sort((a,b)=>monthVotes[b]-monthVotes[a])[0]||null;
-  if(detectedMonth) rebuildSemanasFromMonth(detectedMonth);
+  // Força Abril/2026 — sem votação, sem detecção automática
+  rebuildSemanasFromMonth(ABRIL_YYYY_MM);
+  const detectedMonth = ABRIL_YYYY_MM;
 
   // PASS 2: reset DATA
   DATA.forEach(r=>{
@@ -2544,18 +2574,25 @@ function processStructuredRows(rows, source){
     if(id && seenIds.has(id)){ dupes++; return; }
     if(id) seenIds.add(id);
 
-    const nameRaw = String(findCol(row,['Nome Colaborador','nome colaborador','colaborador','nome','vendedor'])||'').trim();
+    // CORREÇÃO 3 — Unificação: trim().toUpperCase() elimina duplicatas por espaço/caixa
+    const nameRaw = String(findCol(row,['Nome Colaborador','nome colaborador','colaborador','nome','vendedor'])||'').trim().toUpperCase();
     if(!nameRaw) return;
 
     const valRaw = findCol(row,['Valor Venda','valor venda','valor','receita','r$ vendas','rs vendas']);
     const val = parseVal(valRaw);
 
-    /* CORREÇÃO 4: usa normalizeStatus para padronizar antes de classificar.
-       Isso resolve "Cancelamento" ≠ "Cancelado", "Rejeitação" ≠ "Rejeitado", etc. */
+    /* CORREÇÃO 4: usa normalizeStatus para padronizar antes de classificar. */
     const tipoNorm   = String(findCol(row,['Tipo','tipo'])||'').trim().toUpperCase()
                          .normalize('NFD').replace(/[\u0300-\u036f]/g,'');
     const statusNorm = normalizeStatus(findCol(row,['Status','status','estagio','estágio'])||'');
     const dateStr = dateCache[ri];
+
+    // CORREÇÃO 2 — Filtro estrito: só /04/2026 (mês 3 no índice JS = Abril)
+    // Aceita ISO 2026-04-XX ou Brasil DD/04/2026 — descarta qualquer outro mês/ano
+    if(!dateStr) return;
+    const dsISO = /^\d{4}-\d{2}-\d{2}/.test(dateStr) ? dateStr : '';
+    if(!dsISO || dsISO.substring(0,7) !== ABRIL_YYYY_MM) return;
+
     const weekIdx = getWeekIdxFromDate(dateStr);
 
     /* REGRA DE FATURAMENTO CORRIGIDA:
@@ -2580,15 +2617,7 @@ function processStructuredRows(rows, source){
 
     RAW_ROWS.push({nome:nameRaw, valor:val, estagio:estagioLabel, data:dateStr, semana:weekIdx});
 
-    /* FILTRO DE MÊS: apenas registros do mês detectado entram (evita mistura de meses) */
-    // Nota: o push acima é feito antes do filtro para debug — mas o DATA acumula apenas o mês ativo
-    if(detectedMonth && dateStr && /^\d{4}-\d{2}-\d{2}/.test(dateStr)){
-      const rowMonth=dateStr.substring(0,7);
-      if(rowMonth!==detectedMonth){
-        RAW_ROWS.pop(); // remove o que acabamos de adicionar
-        return;
-      }
-    }
+    // Filtro de mês já aplicado acima — todos os registros aqui são Abril/2026
 
     /* Match de nome — normStr é UPPERCASE sem acentos.
        Match exato normalizado tem prioridade; fallback ≥2 palavras significativas (>3 chars)
@@ -2864,23 +2893,20 @@ window.addEventListener('load',()=>{
   loadSettings();
   runSplash(()=>{
     renderAll();
-    // Status bar: informa se os dados são pré-carregados ou do localStorage
     if(RAW_ROWS.length>0){
-      setGsStatus(`✅ ${RAW_ROWS.length} registros pré-carregados · Abril/26 · Configure Google Sheets para atualização automática`,'ok');
+      setGsStatus(`✅ ${RAW_ROWS.length} registros pré-carregados · Abril/26 · Sincronizando Google Sheets...`,'ok');
     }
-    toast('✅ BI Comercial v13 · Abril/26 pré-carregado · ' + RAW_ROWS.length + ' contratos');
-    // Log de validação do faturamento bruto
+    toast('✅ BI Comercial v14 · Abril/26 · Cache limpo · Dados frescos');
+    // Log de validação
     const _brutoCheck=RAW_ROWS.reduce((s,r)=>s+(r.valor||0),0);
     const _aprovCheck=RAW_ROWS.filter(r=>r.estagio==='APROVADO').reduce((s,r)=>s+(r.valor||0),0);
-    console.log(`[v13 VALIDAÇÃO] Faturamento BRUTO: R$${_brutoCheck.toFixed(2)} | Aprovados: R$${_aprovCheck.toFixed(2)} | Registros: ${RAW_ROWS.length}`);
-    // Auto-sincronização remota se URL configurada
-    // Populate URL inputs
-    const gsI = document.getElementById('gsUrlInput'); if(gsI) gsI.value = CFG.remoteUrl||'';
-    const cfgI = document.getElementById('cfgRemoteUrl'); if(cfgI) cfgI.value = CFG.remoteUrl||'';
-    // Auto-sync Google Sheets on load
-    // URL pré-configurada — sincroniza sempre ao carregar
+    console.log(`[v14] Faturamento BRUTO: R$${_brutoCheck.toFixed(2)} | Aprovados: R$${_aprovCheck.toFixed(2)} | Registros: ${RAW_ROWS.length}`);
+    console.log(`[v14] localStorage.clear() executado · STRICT_MONTH=2026-04 · URL oficial ativa`);
+    // Preenche inputs de URL com o link oficial
+    const gsI = document.getElementById('gsUrlInput'); if(gsI) gsI.value = DEFAULT_CFG.remoteUrl;
+    const cfgI = document.getElementById('cfgRemoteUrl'); if(cfgI) cfgI.value = DEFAULT_CFG.remoteUrl;
+    // Sincroniza Google Sheets automaticamente ao carregar
     setTimeout(()=>syncGoogleSheets(false), 800);
-    // Start auto-refresh every 5 minutes
     startGsAutoRefresh(5);
   });
 });
