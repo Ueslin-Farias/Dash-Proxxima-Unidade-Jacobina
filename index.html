@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Próxima Telecom · BI Jacobina v9</title>
+<title>Próxima Telecom · BI Dashboard v10</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -679,7 +679,7 @@ body>*{position:relative;z-index:1}
 
 <script>
 /* ═════════════════════════════════════════════
-   PRÓXIMA TELECOM · BI COMERCIAL v7 · Jacobina
+   PRÓXIMA TELECOM · BI COMERCIAL v10 · Motor Refatorado
    v7: Motor 100% (todos os estágios exceto CANCELADO contam)
        Auto-detecção do mês ativo a partir das datas
        Semanas seg→dom calculadas automaticamente
@@ -747,7 +747,7 @@ const DEFAULT_CFG = {
   colReceita:'R$ Vendas',
   colEstagio:'Estágio Contrato Proxxima',
   colData:'Date (Data Venda Contrato Proxxima)',
-  remoteUrl:'',
+  remoteUrl:'https://docs.google.com/spreadsheets/d/1tyXHIxYfmTTKSOMMyPyTXnIySnDOhJeWdZBSxjtyn8g/export?format=csv',
   atendentes:{},
 };
 
@@ -762,7 +762,8 @@ const fName= n => { const w=(n||'').trim().split(' '); return w[0]; };
 const set$ = (id,v) => { const e=document.getElementById(id); if(e) e.textContent=v??'—'; };
 const setH = (id,v) => { const e=document.getElementById(id); if(e) e.innerHTML=v??''; };
 const chip = (t,c)  => `<span class="tag ${c}">${t}</span>`;
-const isActive = r => (r.status||'Ativa') === 'Ativa';
+const isActiveStatus = r => (r.status||'Ativa') === 'Ativa'; // Regra 3: usado apenas para badge/visual, nao filtra faturamento
+const isActive = r => true; // Faturamento soberano: todos aparecem no ranking e KPIs
 
 const statusTag = (p, status) => {
   if(status==='Férias')   return chip('🏖 Férias','t0');
@@ -845,20 +846,27 @@ function computeData(){
     /* Soma TODAS as semanas dinâmicas de SEMANAS_BASE (até 6) */
     const total=SEMANAS_BASE.reduce((s,sm)=>s+(r[sm.key]||0),0);
     const totalQtd=(r.qtd||[]).reduce((a,b)=>a+(b||0),0);
-    const active=isActive(r);
-    const meta=r.metaInd??CFG.metaInd??1362;
-    const p=!active?null:(meta>0?total/meta:null);
+    /* Regra 3: status Ferias/Atestado/Licenca ZERA META (isento), nao o realizado.
+       O faturamento e exibido 100%. pct=null remove do ranking competitivo. */
+    const statusAtual=r.status||'Ativa';
+    const isIsento=statusAtual==='Férias'||statusAtual==='Atestado'||statusAtual==='Licença';
+    const metaBase=r.metaInd??CFG.metaInd??1362;
+    const meta=isIsento?0:metaBase;
+    const p=isIsento?null:(meta>0?total/meta:null);
     const totalLoss=((r.losses?.cancel||[]).reduce((a,b)=>a+b,0))+((r.losses?.reject||[]).reduce((a,b)=>a+b,0));
-    return {...r,total,totalQtd,meta,pct:p,totalLoss};
+    const totalEmAprov=(r.emAprov||[]).reduce((a,b)=>a+(b||0),0); // Regra 4
+    return {...r,total,totalQtd,meta,pct:p,totalLoss,isIsento,totalEmAprov};
   }).sort((a,b)=>{
-    if(isActive(a)&&!isActive(b))return -1;
-    if(!isActive(a)&&isActive(b))return 1;
+    /* Ativos competitivos primeiro, depois isentos — ambos com faturamento visivel */
+    if(!a.isIsento&&b.isIsento)return -1;
+    if(a.isIsento&&!b.isIsento)return 1;
     return (b.pct||0)-(a.pct||0);
   });
 }
 
 function semanalTotals(){
-  const rows=computeData().filter(r=>isActive(r));
+  /* Regra 3: semanalTotals inclui TODOS os vendedores (isentos tambem faturaram) */
+  const rows=computeData();
   return SEMANAS_BASE.map((s,i)=>({
     ...s,
     real:rows.reduce((acc,r)=>acc+(r[s.key]||0),0),
@@ -885,14 +893,16 @@ function renderAll(){
 
 /* ──────────── KPIs ──────────── */
 function renderKPIs(d){
-  const active=d.filter(r=>isActive(r));
-  const total=active.reduce((s,r)=>s+r.total,0);
-  const meta=active.reduce((s,r)=>s+r.meta,0);
+  /* Regra 3: faturamento total soma TODOS (incluindo isentos) */
+  const competitivos=d.filter(r=>!r.isIsento);
+  const isentos=d.filter(r=>r.isIsento);
+  const total=d.reduce((s,r)=>s+r.total,0); // soma todos para KPI de receita
+  const meta=competitivos.reduce((s,r)=>s+r.meta,0); // meta so dos ativos
   const pctVal=pct(total,meta)*100;
-  const qtdTot=active.reduce((s,r)=>s+r.totalQtd,0);
+  const qtdTot=d.reduce((s,r)=>s+r.totalQtd,0);
   const ticket=qtdTot>0?total/qtdTot:0;
   const lider=d.find(r=>r.pct!==null);
-  const ausentes=d.filter(r=>!isActive(r));
+  const ausentes=isentos;
   const totalCancel=d.reduce((s,r)=>s+((r.losses?.cancel||[]).reduce((a,b)=>a+b,0)),0);
   const totalReject=d.reduce((s,r)=>s+((r.losses?.reject||[]).reduce((a,b)=>a+b,0)),0);
   const totalLoss=totalCancel+totalReject;
@@ -904,8 +914,8 @@ function renderKPIs(d){
   set$('kPct',fP(pctVal));
   set$('kQtd',qtdTot.toString());
   set$('kQtdSub',`Ticket médio: ${brl(ticket)}`);
-  set$('kAtiv',`${active.length} / ${d.length}`);
-  set$('kAtivSub',ausentes.length?`${ausentes.length} afastada(s)`:'Todas ativas');
+  set$('kAtiv',`${competitivos.length} / ${d.length}`);
+  set$('kAtivSub',isentos.length?`${isentos.length} isenta(s)`:'Todas ativas');
   set$('kLoss',totalLoss>0?`${totalLoss} ⚠️`:'0');
   set$('kLossSub',`${totalCancel} cancel · ${totalReject} rejeit`);
 
@@ -951,7 +961,7 @@ function renderVisaoCharts(d){
   renderVisaoChart();
 }
 function renderVisaoChart(){
-  const d=computeData().filter(r=>isActive(r));
+  const d=computeData().filter(r=>!r.isIsento);
   const mode=document.getElementById('visaoFilter')?.value||'receita';
   const labels=d.map(r=>fName(r.name));
   const vals=mode==='receita'?d.map(r=>r.total):d.map(r=>r.totalQtd);
@@ -969,8 +979,9 @@ function renderRanking(){
   const d=computeData();
   const mode=document.getElementById('rankFilter')?.value||'receita';
   const sorted=[...d].sort((a,b)=>{
-    if(isActive(a)&&!isActive(b))return -1;
-    if(!isActive(a)&&isActive(b))return 1;
+    /* Regra 3: isentos vao para baixo do ranking, mas com faturamento visivel */
+    if(!a.isIsento&&b.isIsento)return -1;
+    if(a.isIsento&&!b.isIsento)return 1;
     if(mode==='qtd')return b.totalQtd-a.totalQtd;
     if(mode==='pct')return (b.pct||0)-(a.pct||0);
     return b.total-a.total;
@@ -979,18 +990,24 @@ function renderRanking(){
   if(!tb)return;
   let pos=0;
   tb.innerHTML=sorted.map(r=>{
-    const active=isActive(r);
+    const active=!r.isIsento; // Regra 3: isentos nao entram no rank numerado
     if(active)pos++;
     const p=r.pct!==null?Math.min(r.pct,1):0;
-    const pT=!active?r.status:(r.pct!==null?fP(r.pct*100):'—');
+    const pT=r.isIsento?r.status:(r.pct!==null?fP(r.pct*100):'—');
     const cl=pos===1?'p1':pos===2?'p2':pos===3?'p3':'pn';
     const co=pCol(r.pct);
-    const totalLoss=(r.losses?.cancel||[]).reduce((a,b)=>a+b,0)+(r.losses?.reject||[]).reduce((a,b)=>a+b,0);
-    const lossCell=totalLoss>2
+    const totalCancel=(r.losses?.cancel||[]).reduce((a,b)=>a+b,0);
+    const totalReject=(r.losses?.reject||[]).reduce((a,b)=>a+b,0);
+    const totalLoss=totalCancel+totalReject;
+    const emAprovQtd=r.totalEmAprov||0;
+    /* Regra 4: tag laranja para EM APROVACAO separada da tag vermelha de perdas */
+    const aprovTag=emAprovQtd>0?`<span class="warn-tag" style="background:rgba(255,163,47,.18);color:#FF9F43;margin-right:3px">⏳ ${emAprovQtd}</span>`:'';
+    const lossTag=totalLoss>2
       ?`<span class="alert-tag">⚠️ ${totalLoss}</span>`
       :totalLoss>0
         ?`<span class="warn-tag">⚠️ ${totalLoss}</span>`
         :`<span style="color:var(--green);font-size:11px">✓ 0</span>`;
+    const lossCell=aprovTag+lossTag;
     const metaSemVal=r.metaSem||CFG.metaSem||340;
     // Semana atual: última com dados
     const semKeys=['s1','s2','s3','s4'];
@@ -1029,16 +1046,19 @@ function renderPodio(d){
     const ri=oIdx[i];
     const cfg=CFG.atendentes?.[r.name]||{};
     const foto=cfg.foto||'';
-    const seal=!isActive(r)?sealHtml(r.status):'';
+    const seal=r.isIsento?sealHtml(r.status):''; // Regra 3: selo apenas para isentos
     const av=foto?`<img src="${foto}" alt="${r.name}">`:ini(r.name);
     const metaSemVal=r.metaSem||CFG.metaSem||340;
     const semKeys=['s1','s2','s3','s4'];
     let currSemVal=0;
     for(let j=3;j>=0;j--){if(r[semKeys[j]]>0){currSemVal=r[semKeys[j]];break;}}
     const totalLoss=((r.losses?.cancel||[]).reduce((a,b)=>a+b,0))+((r.losses?.reject||[]).reduce((a,b)=>a+b,0));
-    const lossHtml=totalLoss>0
+    const podioEmAprov=r.totalEmAprov||0;
+    /* Regra 4: tag laranja/amarela para EM APROVACAO no podio */
+    const aprovPodio=podioEmAprov>0?`<div style="margin:4px auto 0;display:inline-flex;align-items:center;gap:4px;background:rgba(255,163,47,.18);border:1px solid rgba(255,163,47,.35);padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;color:#FF9F43">⏳ ${podioEmAprov} em aprovação</div>`:'';
+    const lossHtml=(totalLoss>0
       ?`<div style="margin:4px auto 0;display:inline-flex;align-items:center;gap:4px;background:rgba(255,85,114,.18);border:1px solid rgba(255,85,114,.3);padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;color:var(--red)">⚠️ ${totalLoss} perda(s)</div>`
-      :`<div style="font-size:9px;color:var(--green);margin-top:3px">✓ Sem perdas</div>`;
+      :`<div style="font-size:9px;color:var(--green);margin-top:3px">✓ Sem perdas</div>`)+aprovPodio;
     const semColor=currSemVal>=metaSemVal?'var(--green)':currSemVal>=metaSemVal*.7?'var(--yel)':'var(--red)';
     return `<div class="pi ${rCls[ri]}">
       <div class="pi-av">${av}${seal}</div>
@@ -1092,7 +1112,7 @@ function renderSemanal(){
     ]},options:{...CD,responsive:true,maintainAspectRatio:false}
   });
 
-  const top5=computeData().filter(r=>isActive(r)).slice(0,5);
+  const top5=computeData().filter(r=>!r.isIsento).slice(0,5);
   const hCols=['#FFD700','#E8007D','#4A78FF','#00DFA2','#FF9F43'];
   mkChart('cIndiv',{
     type:'bar',data:{
@@ -1115,7 +1135,7 @@ function renderHistorico(){
   ];
   if(sel) sel.innerHTML=months.map(m=>`<button class="mb${currentMonth===m.key?' on':''}" onclick="selMonth(this,'${m.key}')">${m.label}</button>`).join('');
   renderMonthTable(currentMonth);
-  const top5=computeData().filter(r=>isActive(r)).slice(0,5);
+  const top5=computeData().filter(r=>!r.isIsento).slice(0,5);
   const hC=['#FFD700','#E8007D','#4A78FF','#00DFA2','#FF9F43'];
   mkChart('cHist',{
     type:'line',data:{
@@ -1141,7 +1161,7 @@ function selMonth(el,key){
 function renderMonthTable(key){
   const lbl=document.getElementById('mLabel');
   if(key==='atual'){
-    const d=computeData().filter(r=>isActive(r));
+    const d=computeData().filter(r=>!r.isIsento);
     if(lbl)lbl.textContent=(activeMonthLabel||'Mês atual')+' (importado)';
     const head=document.getElementById('mHead');
     const wkKeys=SEMANAS_BASE.map(s=>s.key);
@@ -1187,7 +1207,7 @@ function renderMonthTable(key){
 /* ──────────── INSIGHTS & RECORDES ──────────── */
 function renderInsights(d){
   d=d||computeData();
-  const active=d.filter(r=>isActive(r));
+  const active=d.filter(r=>!r.isIsento); // competitivos para metricas principais
   const total=active.reduce((s,r)=>s+r.total,0);
   const meta=active.reduce((s,r)=>s+r.meta,0);
   const qtdTot=active.reduce((s,r)=>s+r.totalQtd,0);
@@ -1345,7 +1365,7 @@ function renderQualidade(){
   const d=computeData();
   const lb=document.getElementById('lossBody');
   if(lb){
-    lb.innerHTML=d.filter(r=>isActive(r)).map(r=>{
+    lb.innerHTML=d.filter(r=>!r.isIsento).map(r=>{ // competitivos
       const cancelSem=(r.losses?.cancel||[0,0,0,0]).reduce((a,b)=>a+b,0); // total semana atual = soma
       const rejectSem=(r.losses?.reject||[0,0,0,0]).reduce((a,b)=>a+b,0);
       const cancelMes=cancelSem; // mês = mesma janela por ora
@@ -1469,8 +1489,9 @@ function setAtdStatus(name,status){
   const r=DATA.find(d=>d.name===name);
   if(r){
     r.status=status;
-    if(status!=='Ativa')r.metaInd=0;
-    else r.metaInd=CFG.atendentes[name]?.metaInd||CFG.metaInd||1362;
+    /* Regra 3: nao tocamos em metaInd aqui — computeData zera a meta dos isentos
+       dinamicamente, preservando o valor base para quando retornarem de ferias */
+    if(status==='Ativa') r.metaInd=CFG.atendentes[name]?.metaInd||CFG.metaInd||1362;
   }
   buildConfigUI(computeData());
 }
@@ -1516,8 +1537,8 @@ function saveConfig(){
     const cfgA=CFG.atendentes?.[r.name];
     const ns=cfgA?.status||r.status||'Ativa';
     r.status=ns;
-    if(ns!=='Ativa')r.metaInd=0;
-    else r.metaInd=cfgA?.metaInd||CFG.metaInd||1362;
+    /* Regra 3: preserva metaInd base — computeData aplica meta=0 dinamicamente para isentos */
+    r.metaInd=cfgA?.metaInd||CFG.metaInd||1362;
     if(cfgA?.metaSem)r.metaSem=cfgA.metaSem;
   });
   saveSettings();renderAll();
@@ -1763,7 +1784,7 @@ function processRows(rows,fname,colMap){
     return k?row[k]:'';
   };
 
-  /* PASS 1 — descobre o mês predominante (votação por contagem de datas válidas) */
+  /* PASS 1 — descobre o mês predominante via split('-') — sem new Date() para evitar bug de fuso */
   const monthVotes={};
   const dateCache=[];
   for(const row of rows){
@@ -1771,7 +1792,9 @@ function processRows(rows,fname,colMap){
     const ds=normalizeDateStr(dRaw,row);
     dateCache.push(ds);
     if(/^\d{4}-\d{2}-\d{2}/.test(ds)){
-      const k=ds.substring(0,7); // YYYY-MM
+      /* Usa split para extrair YYYY-MM sem qualquer conversão de fuso horário */
+      const parts=ds.substring(0,10).split('-');
+      const k=parts[0]+'-'+parts[1]; // YYYY-MM seguro
       monthVotes[k]=(monthVotes[k]||0)+1;
     }
   }
@@ -1785,6 +1808,7 @@ function processRows(rows,fname,colMap){
     r.s1=0;r.s2=0;r.s3=0;r.s4=0;r.s5=0;r.s6=0;
     r.qtd=[0,0,0,0,0,0];
     r.losses={cancel:[0,0,0,0,0,0],reject:[0,0,0,0,0,0]};
+    r.emAprov=[0,0,0,0,0,0]; // Regra 4: reset do contador EM APROVACAO
   });
   RAW_ROWS=[];
   let imported=0,skippedUnit=0,skippedNoMatch=0;
@@ -1806,18 +1830,20 @@ function processRows(rows,fname,colMap){
     const statusU=statusRaw.toUpperCase();
     const isCancelado=estagio==='CANCELADO'||statusU==='CANCELADO';
     const isRejeitado=estagio==='REJEITADO'||estagio==='REPROVADO'||statusU==='REJEITADO'||statusU==='REPROVADO';
+    /* Regra 4: EM APROVAÇÃO é contabilizado financeiramente (soma no R$ Vendas) */
+    const isEmAprovacao=estagio==='EM APROVAÇÃO'||estagio==='EM APROVACAO'||estagio==='PENDENTE'||estagio==='AGUARDANDO APROVAÇÃO'||estagio==='AGUARDANDO APROVACAO';
+    const estagioNorm=isCancelado?'CANCELADO':isRejeitado?'REJEITADO':isEmAprovacao?'EM APROVAÇÃO':(estagio||'EM APROVAÇÃO');
 
-    RAW_ROWS.push({nome:nameRaw,valor:val,estagio:isCancelado?'CANCELADO':(isRejeitado?'REJEITADO':(estagio||'EM APROVAÇÃO')),data:dateStr,semana:weekIdx});
+    RAW_ROWS.push({nome:nameRaw,valor:val,estagio:estagioNorm,data:dateStr,semana:weekIdx});
 
     /* Match por nome — exato normalizado primeiro.
        Fallback: 3+ palavras significativas (>3 chars) devem coincidir.
-       Evita falso-positivo: "BRUNA EMILE" ≠ "REBECA BRUNA";
-       "GABRIELA ARAUJO SANTOS OLIVEIRA" ≠ "MIKELLE SANTOS ARAUJO DE OLIVEIRA" */
+       Evita falso-positivo: "BRUNA EMILE" != "REBECA BRUNA";
+       "GABRIELA ARAUJO SANTOS OLIVEIRA" != "MIKELLE SANTOS ARAUJO DE OLIVEIRA" */
     const nameN=normStr(nameRaw);
     const found=DATA.find(d=>{
       const dn=normStr(d.name);
-      if(dn===nameN)return true; // match exato normalizado (caso mais comum)
-      // fallback seguro: mínimo 3 palavras significativas em comum
+      if(dn===nameN)return true;
       const nw=nameN.split(' ').filter(w=>w.length>3);
       const dw=dn.split(' ').filter(w=>w.length>3);
       const shared=nw.filter(w=>dw.includes(w));
@@ -1828,23 +1854,28 @@ function processRows(rows,fname,colMap){
     const sKey=['s1','s2','s3','s4','s5','s6'][weekIdx]||'s1';
     if(!found.qtd||found.qtd.length<6)found.qtd=[0,0,0,0,0,0];
     if(!found.losses)found.losses={cancel:[0,0,0,0,0,0],reject:[0,0,0,0,0,0]};
+    if(!found.emAprov)found.emAprov=[0,0,0,0,0,0]; // Regra 4: contador EM APROVAÇÃO
     if(found.losses.cancel.length<6)found.losses.cancel=[...found.losses.cancel,0,0].slice(0,6);
     if(found.losses.reject.length<6)found.losses.reject=[...found.losses.reject,0,0].slice(0,6);
 
     if(isCancelado){
+      /* CANCELADO: conta perda, NAO soma no faturamento */
       found.losses.cancel[weekIdx]=(found.losses.cancel[weekIdx]||0)+1;
+    } else if(isRejeitado){
+      /* REJEITADO: conta perda, NAO soma no faturamento */
+      found.losses.reject[weekIdx]=(found.losses.reject[weekIdx]||0)+1;
     } else {
-      /* CONTABILIZA TUDO exceto CANCELADO (incluindo EM APROVAÇÃO, APROVADO, etc) */
+      /* Regra 4: EM APROVACAO e APROVADO somam no R$ Vendas */
       found[sKey]=(found[sKey]||0)+val;
       found.qtd[weekIdx]=(found.qtd[weekIdx]||0)+1;
-      if(isRejeitado){
-        found.losses.reject[weekIdx]=(found.losses.reject[weekIdx]||0)+1;
+      if(isEmAprovacao){
+        found.emAprov[weekIdx]=(found.emAprov[weekIdx]||0)+1;
       }
     }
     imported++;
   });
 
-  console.log(`[v9] ${fname}: ${imported} contratos contabilizados | ${skippedNoMatch} sem match no time | mês detectado: ${detectedMonth||'(nenhum)'}`);
+  console.log(`[v10] ${fname}: ${imported} contabilizados | ${skippedNoMatch} sem match | mes: ${detectedMonth||'(nenhum)'} | emAprov: ${RAW_ROWS.filter(r=>r.estagio==='EM APROVAÇÃO').length} | todas as unidades`);
   // Debug: total por atendente para validação
   const totais=DATA.filter(r=>r.s1||r.s2||r.s3||r.s4).map(r=>`${r.name.split(' ')[0]}: ${(SEMANAS_BASE.reduce((s,sm)=>s+(r[sm.key]||0),0)).toFixed(2)}`);
   if(totais.length)console.log('[v9] Totais por atendente:',totais.join(' | '));
@@ -1873,10 +1904,12 @@ function rebuildSemanasFromMonth(yyyymm){
   }
   SEMANAS_BASE=sems;
   // Mapeia mês para chave do histórico
+  /* Regra 2: usa índices numéricos (sem new Date) para evitar bug de fuso horário */
   const mesNomes=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   const slugs=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
-  activeMonthKey=slugs[m-1]+String(y).slice(-2);
-  activeMonthLabel=mesNomes[m-1]+'/'+String(y).slice(-2);
+  const mIdx=m-1; // m já vem de split('-') — sem fuso horário
+  activeMonthKey=slugs[mIdx]+String(y).slice(-2);
+  activeMonthLabel=mesNomes[mIdx]+'/'+String(y).slice(-2);
   currentMonth='atual';
 }
 
@@ -2026,31 +2059,56 @@ async function loadFromRemoteUrl(showToast){
   if(!url){ if(showToast)toast('⚠️ Configure uma URL primeiro.','err'); return; }
   setRemoteStatus('⏳ Carregando dados de '+url.substring(0,60)+'...');
   try{
-    const r=await fetch(url,{cache:'no-store'});
-    if(!r.ok)throw new Error('HTTP '+r.status);
-    const p=await r.json();
-    if(!p||p.app!=='BI-Jacobina')throw new Error('JSON inválido (app != BI-Jacobina)');
-    if(p.cfg) CFG={...DEFAULT_CFG,...p.cfg, remoteUrl:url}; // preserva URL local
-    if(Array.isArray(p.data)&&p.data.length>0){
-      DATA=p.data;
-      DATA.forEach(r=>{
-        if(!r.losses)r.losses={cancel:[0,0,0,0,0,0],reject:[0,0,0,0,0,0]};
-        if(!r.qtd)r.qtd=[0,0,0,0,0,0];
-        if(!r.status)r.status='Ativa';
-      });
+    /* Detecta se é CSV do Google Sheets (export?format=csv) ou JSON legado */
+    const isCsv=url.includes('format=csv')||url.endsWith('.csv');
+    /* CORS: usa proxy allorigins para Google Sheets */
+    const fetchUrl=url.includes('docs.google.com')
+      ?'https://api.allorigins.win/raw?url='+encodeURIComponent(url)
+      :url;
+    const resp=await fetch(fetchUrl,{cache:'no-store'});
+    if(!resp.ok)throw new Error('HTTP '+resp.status);
+    if(isCsv){
+      /* Processa CSV com XLSX para máxima compatibilidade */
+      const csvText=await resp.text();
+      if(!csvText||csvText.trim().length<10)throw new Error('CSV vazio ou inacessível');
+      const wb=XLSX.read(csvText,{type:'string',raw:false});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{defval:'',raw:false});
+      if(!rows.length)throw new Error('CSV sem registros válidos');
+      console.log('[remote-csv] Colunas:',Object.keys(rows[0]||{}).slice(0,10).join(' | '));
+      console.log('[remote-csv] Total linhas:',rows.length);
+      processRows(rows,'google-sheets-remoto');
+      saveSettings();renderAll();
+      confettiFired=false;
+      setRemoteStatus('✅ Sincronizado em '+new Date().toLocaleTimeString('pt-BR')+' · '+RAW_ROWS.length+' registros · '+activeMonthLabel,'ok');
+      if(showToast)toast('☁️ Google Sheets sincronizado! '+RAW_ROWS.length+' registros carregados.');
+    } else {
+      /* Modo legado: JSON exportado pelo próprio dashboard */
+      const p=await resp.json();
+      if(!p||p.app!=='BI-Jacobina')throw new Error('JSON inválido (app != BI-Jacobina)');
+      if(p.cfg) CFG={...DEFAULT_CFG,...p.cfg,remoteUrl:url};
+      if(Array.isArray(p.data)&&p.data.length>0){
+        DATA=p.data;
+        DATA.forEach(d=>{
+          if(!d.losses)d.losses={cancel:[0,0,0,0,0,0],reject:[0,0,0,0,0,0]};
+          if(!d.qtd)d.qtd=[0,0,0,0,0,0];
+          if(!d.status)d.status='Ativa';
+        });
+      }
+      if(Array.isArray(p.rawRows)) RAW_ROWS=p.rawRows;
+      if(Array.isArray(p.semanas)&&p.semanas.length) SEMANAS_BASE=p.semanas;
+      if(p.activeMonthKey) activeMonthKey=p.activeMonthKey;
+      if(p.activeMonthLabel) activeMonthLabel=p.activeMonthLabel;
+      if(p.historico){['jan26','fev26','mar26'].forEach(k=>{if(p.historico[k])HISTORICO[k]=p.historico[k];});}
+      saveSettings();renderAll();
+      const ts=p.exportedAt?new Date(p.exportedAt).toLocaleString('pt-BR'):'agora';
+      setRemoteStatus('✅ Sincronizado em '+new Date().toLocaleTimeString('pt-BR')+' · gerado em '+ts,'ok');
+      if(showToast)toast('☁️ Dashboard sincronizado da nuvem!');
     }
-    if(Array.isArray(p.rawRows)) RAW_ROWS=p.rawRows;
-    if(Array.isArray(p.semanas)&&p.semanas.length) SEMANAS_BASE=p.semanas;
-    if(p.activeMonthKey) activeMonthKey=p.activeMonthKey;
-    if(p.activeMonthLabel) activeMonthLabel=p.activeMonthLabel;
-    if(p.historico){ ['jan26','fev26','mar26'].forEach(k=>{ if(p.historico[k]) HISTORICO[k]=p.historico[k]; }); }
-    saveSettings(); renderAll();
-    const ts=p.exportedAt?new Date(p.exportedAt).toLocaleString('pt-BR'):'agora';
-    setRemoteStatus(`✅ Sincronizado em ${new Date().toLocaleTimeString('pt-BR')} · gerado em ${ts}`,'ok');
-    if(showToast)toast('☁️ Dashboard sincronizado da nuvem!');
   }catch(err){
     setRemoteStatus('❌ Erro: '+err.message,'err');
     if(showToast)toast('❌ Falha ao carregar URL: '+err.message,'err');
+    console.error('[remote] Erro ao sincronizar:',err);
   }
 }
 function exportBackupForCloud(){
@@ -2077,9 +2135,9 @@ window.addEventListener('load',()=>{
   loadSettings();
   runSplash(()=>{
     renderAll();
-    toast('BI Comercial v9 · Próxima Telecom · Pronto');
-    // Auto-sincronização remota se URL configurada
-    if(CFG.remoteUrl){ setTimeout(()=>loadFromRemoteUrl(false), 500); }
+    toast('BI Comercial v10 · Próxima Telecom · Sincronizando Google Sheets...');
+    /* Auto-sincronização com Google Sheets na abertura */
+    if(CFG.remoteUrl){ setTimeout(()=>loadFromRemoteUrl(false), 800); }
   });
 });
 </script>
