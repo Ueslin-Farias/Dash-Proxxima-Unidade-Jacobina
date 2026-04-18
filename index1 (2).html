@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Próxima Telecom · BI Dashboard v10</title>
+<title>Próxima Telecom · BI Jacobina v11</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -297,7 +297,7 @@ body>*{position:relative;z-index:1}
 <div id="splash">
   <div class="sp-logo">pró<em>X</em>ima <span style="font-weight:400;font-size:26px;color:var(--tx2)">Telecom</span></div>
   <div class="sp-track"><div class="sp-bar" id="spBar"></div></div>
-  <div class="sp-txt" id="spMsg">Inicializando BI Jacobina v9...</div>
+  <div class="sp-txt" id="spMsg">Carregando dados de Abril/26...</div>
 </div>
 <div id="toast"></div>
 
@@ -306,7 +306,7 @@ body>*{position:relative;z-index:1}
     <div class="hb-px">PX</div>
     <div>
       <div class="hb-title">BI Comercial · Jacobina</div>
-      <div class="hb-sub">Próxima Telecom · Sistema v9</div>
+      <div class="hb-sub">Próxima Telecom · Sistema v11</div>
     </div>
   </div>
   <div class="hr">
@@ -327,7 +327,7 @@ body>*{position:relative;z-index:1}
     <p>Arraste o arquivo "Quantidade de Vendas Diretas" (.csv ou .xlsx) aqui</p>
     <span>Colunas: Nome Colaborador · R$ Vendas · Estágio Contrato Proxxima · Date (Data Venda Contrato Proxxima) · Soma TODAS as linhas com R$ Vendas (sem filtro de unidade)</span>
   </div>
-  <div class="uz-status" id="uzSt">Aguardando arquivo...</div>
+  <div class="uz-status" id="uzSt">⏳ Carregando dados de Abril/26...</div>
   <button class="uz-btn" onclick="event.stopPropagation();document.getElementById('csvInput').click()">Selecionar arquivo</button>
 </div>
 
@@ -435,7 +435,7 @@ body>*{position:relative;z-index:1}
             <th>S1</th><th>S2</th><th>S3</th><th>S4</th>
             <th>Total R$</th><th>Qtd</th>
             <th>Meta Mensal</th><th>Meta Semanal</th>
-            <th>% Meta</th><th>Perdas ⚠️</th>
+            <th>% Meta</th><th>Perdas ⚠️</th><th>⏳ Aprov.</th>
             <th>Progresso</th><th>Status</th>
           </tr>
         </thead>
@@ -679,8 +679,8 @@ body>*{position:relative;z-index:1}
 
 <script>
 /* ═════════════════════════════════════════════
-   PRÓXIMA TELECOM · BI COMERCIAL v10 · Motor Refatorado
-   v7: Motor 100% (todos os estágios exceto CANCELADO contam)
+   PRÓXIMA TELECOM · BI COMERCIAL v11 · Jacobina
+   v11: Motor 100% corrigido — datas ISO split('-')[1], férias sem bloqueio, sem filtro unidade, EM APROVAÇÃO com tag ⏳
        Auto-detecção do mês ativo a partir das datas
        Semanas seg→dom calculadas automaticamente
        Janeiro/Fevereiro/Março limpos (prontos p/ import)
@@ -688,23 +688,35 @@ body>*{position:relative;z-index:1}
        Tags ⚠️ dinâmicas de atenção (canc + rejeit)
 ═════════════════════════════════════════════ */
 
-const STORAGE_KEY = 'dash_settings_v8';
+const STORAGE_KEY = 'dash_prox_v11';
 
 /* ──────────── BASE MESTRA ──────────── */
 const BASE_MESTRA = [
-  { name:'SAMILA VIEIRA DE SOUZA LIMA',           s1:0,s2:0,s3:0,s4:0, metaInd:1362, metaSem:340, status:'Ativa', qtd:[0,0,0,0], losses:{cancel:[0,0,0,0],reject:[0,0,0,0]} },
-  { name:'ADRIELLE DOS SANTOS MAIA',              s1:0,s2:0,s3:0,s4:0, metaInd:1362, metaSem:340, status:'Ativa', qtd:[0,0,0,0], losses:{cancel:[0,0,0,0],reject:[0,0,0,0]} },
-  { name:'REBECA BRUNA CARVALHO DE SOUZA',        s1:0,s2:0,s3:0,s4:0, metaInd:1362, metaSem:340, status:'Ativa', qtd:[0,0,0,0], losses:{cancel:[0,0,0,0],reject:[0,0,0,0]} },
-  { name:'VANESSA SOARES SOUSA',                  s1:0,s2:0,s3:0,s4:0, metaInd:1362, metaSem:340, status:'Ativa', qtd:[0,0,0,0], losses:{cancel:[0,0,0,0],reject:[0,0,0,0]} },
-  { name:'CLAUDIA MOREIRA BISPO',                 s1:0,s2:0,s3:0,s4:0, metaInd:1362, metaSem:340, status:'Ativa', qtd:[0,0,0,0], losses:{cancel:[0,0,0,0],reject:[0,0,0,0]} },
-  { name:'GABRIELA ARAUJO SANTOS OLIVEIRA',       s1:0,s2:0,s3:0,s4:0, metaInd:1362, metaSem:340, status:'Ativa', qtd:[0,0,0,0], losses:{cancel:[0,0,0,0],reject:[0,0,0,0]} },
-  { name:'VITORIA KAROLYNE PEREIRA DE JESUS',     s1:0,s2:0,s3:0,s4:0, metaInd:1362, metaSem:340, status:'Ativa', qtd:[0,0,0,0], losses:{cancel:[0,0,0,0],reject:[0,0,0,0]} },
-  { name:'MIKELLE SANTOS ARAUJO DE OLIVEIRA',     s1:0,s2:0,s3:0,s4:0, metaInd:1362, metaSem:340, status:'Ativa', qtd:[0,0,0,0], losses:{cancel:[0,0,0,0],reject:[0,0,0,0]} },
-  { name:'ADLA MILLENA GOMES BRANDAO',            s1:0,s2:0,s3:0,s4:0, metaInd:1362, metaSem:340, status:'Ativa', qtd:[0,0,0,0], losses:{cancel:[0,0,0,0],reject:[0,0,0,0]} },
-  { name:'HELOISA DA SILVA COELHO VIEIRA',        s1:0,s2:0,s3:0,s4:0, metaInd:1362, metaSem:340, status:'Ativa', qtd:[0,0,0,0], losses:{cancel:[0,0,0,0],reject:[0,0,0,0]} },
-  { name:'LUANA GOMES DA SILVA',                  s1:0,s2:0,s3:0,s4:0, metaInd:1362, metaSem:340, status:'Ativa', qtd:[0,0,0,0], losses:{cancel:[0,0,0,0],reject:[0,0,0,0]} },
-  { name:'BRUNA EMILE SANTOS SENA',               s1:0,s2:0,s3:0,s4:0, metaInd:0,    metaSem:0,   status:'Férias', qtd:[0,0,0,0], losses:{cancel:[0,0,0,0],reject:[0,0,0,0]} },
+  { name:"SAMILA VIEIRA DE SOUZA LIMA", s1:74.99, s2:719.91, s3:374.95, s4:0.0, s5:0.0, s6:0.0, metaInd:1362, metaSem:340, status:"Ativa", qtd:[1, 9, 5, 0, 0, 0], losses:{cancel:[0, 0, 0, 0, 0, 0],reject:[0, 0, 0, 0, 0, 0]}, emAprov:[0, 5, 5, 0, 0, 0] },
+  { name:"ADRIELLE DOS SANTOS MAIA", s1:0.0, s2:409.95, s3:439.95, s4:0.0, s5:0.0, s6:0.0, metaInd:1362, metaSem:340, status:"Ativa", qtd:[0, 5, 5, 0, 0, 0], losses:{cancel:[0, 0, 0, 0, 0, 0],reject:[0, 1, 0, 0, 0, 0]}, emAprov:[0, 3, 5, 0, 0, 0] },
+  { name:"REBECA BRUNA CARVALHO DE SOUZA", s1:74.99, s2:477.94, s3:285.96, s4:0.0, s5:0.0, s6:0.0, metaInd:1362, metaSem:340, status:"Ativa", qtd:[1, 6, 4, 0, 0, 0], losses:{cancel:[0, 1, 0, 0, 0, 0],reject:[0, 0, 0, 0, 0, 0]}, emAprov:[0, 6, 4, 0, 0, 0] },
+  { name:"VANESSA SOARES SOUSA", s1:359.96, s2:647.92, s3:159.98, s4:0.0, s5:0.0, s6:0.0, metaInd:1362, metaSem:340, status:"Ativa", qtd:[4, 8, 2, 0, 0, 0], losses:{cancel:[0, 0, 0, 0, 0, 0],reject:[0, 0, 0, 0, 0, 0]}, emAprov:[0, 5, 2, 0, 0, 0] },
+  { name:"CLAUDIA MOREIRA BISPO", s1:74.99, s2:414.95, s3:374.95, s4:0.0, s5:0.0, s6:0.0, metaInd:1362, metaSem:340, status:"Ativa", qtd:[1, 5, 5, 0, 0, 0], losses:{cancel:[0, 0, 0, 0, 0, 0],reject:[0, 0, 0, 0, 0, 0]}, emAprov:[0, 4, 5, 0, 0, 0] },
+  { name:"GABRIELA ARAUJO SANTOS OLIVEIRA", s1:74.99, s2:374.95, s3:164.98, s4:0.0, s5:0.0, s6:0.0, metaInd:1362, metaSem:340, status:"Ativa", qtd:[1, 5, 2, 0, 0, 0], losses:{cancel:[0, 1, 1, 0, 0, 0],reject:[1, 0, 0, 0, 0, 0]}, emAprov:[0, 4, 2, 0, 0, 0] },
+  { name:"VITORIA KAROLYNE PEREIRA DE JESUS", s1:135.98, s2:417.95, s3:135.98, s4:0.0, s5:0.0, s6:0.0, metaInd:1362, metaSem:340, status:"Ativa", qtd:[2, 5, 2, 0, 0, 0], losses:{cancel:[0, 0, 0, 0, 0, 0],reject:[0, 2, 0, 0, 0, 0]}, emAprov:[0, 5, 2, 0, 0, 0] },
+  { name:"MIKELLE SANTOS ARAUJO DE OLIVEIRA", s1:0.0, s2:300.96, s3:239.97, s4:0.0, s5:0.0, s6:0.0, metaInd:1362, metaSem:340, status:"Ativa", qtd:[0, 4, 3, 0, 0, 0], losses:{cancel:[0, 1, 0, 0, 0, 0],reject:[0, 0, 0, 0, 0, 0]}, emAprov:[0, 4, 3, 0, 0, 0] },
+  { name:"ADLA MILLENA GOMES BRANDAO", s1:0.0, s2:217.97, s3:232.97, s4:0.0, s5:0.0, s6:0.0, metaInd:1362, metaSem:340, status:"Ativa", qtd:[0, 3, 3, 0, 0, 0], losses:{cancel:[0, 0, 0, 0, 0, 0],reject:[0, 0, 0, 0, 0, 0]}, emAprov:[0, 1, 3, 0, 0, 0] },
+  { name:"HELOISA DA SILVA COELHO VIEIRA", s1:0.0, s2:324.96, s3:0.0, s4:0.0, s5:0.0, s6:0.0, metaInd:1362, metaSem:340, status:"Ativa", qtd:[0, 4, 0, 0, 0, 0], losses:{cancel:[0, 0, 0, 0, 0, 0],reject:[0, 0, 0, 0, 0, 0]}, emAprov:[0, 4, 0, 0, 0, 0] },
+  { name:"LUANA GOMES DA SILVA", s1:159.98, s2:149.98, s3:319.96, s4:0.0, s5:0.0, s6:0.0, metaInd:1362, metaSem:340, status:"Ativa", qtd:[2, 2, 4, 0, 0, 0], losses:{cancel:[0, 0, 1, 0, 0, 0],reject:[0, 0, 0, 0, 0, 0]}, emAprov:[0, 2, 4, 0, 0, 0] },
+  { name:"BRUNA EMILE SANTOS SENA", s1:0.0, s2:0.0, s3:375.95, s4:0.0, s5:0.0, s6:0.0, metaInd:1362, metaSem:340, status:"F\u00e9rias", qtd:[0, 0, 5, 0, 0, 0], losses:{cancel:[0, 0, 0, 0, 0, 0],reject:[0, 0, 0, 0, 0, 0]}, emAprov:[0, 0, 5, 0, 0, 0] }
 ];
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DADOS PRÉ-CARREGADOS — gerados automaticamente a partir do XLSX de Abril/26
+   Abril/2026 · 117 registros · 12 atendentes
+   Quando o usuário importar um novo arquivo XLSX/CSV, os dados serão
+   substituídos pelo processamento normal via processRows(). 
+   ═══════════════════════════════════════════════════════════════════════════ */
+const PRELOADED_SEMANAS = [{"key": "s1", "label": "Semana 1", "periodo": "30/03 – 05/04", "metaEquipe": 3750, "metaSem": 340}, {"key": "s2", "label": "Semana 2", "periodo": "06/04 – 12/04", "metaEquipe": 3750, "metaSem": 340}, {"key": "s3", "label": "Semana 3", "periodo": "13/04 – 19/04", "metaEquipe": 3750, "metaSem": 340}, {"key": "s4", "label": "Semana 4", "periodo": "20/04 – 26/04", "metaEquipe": 3750, "metaSem": 340}];
+const PRELOADED_RAW = [{"nome": "ADLA MILLENA GOMES BRANDAO", "valor": 67.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-08", "semana": 1}, {"nome": "ADLA MILLENA GOMES BRANDAO", "valor": 74.99, "estagio": "APROVADO", "data": "2026-04-06", "semana": 1}, {"nome": "ADLA MILLENA GOMES BRANDAO", "valor": 74.99, "estagio": "APROVADO", "data": "2026-04-07", "semana": 1}, {"nome": "ADLA MILLENA GOMES BRANDAO", "valor": 67.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-13", "semana": 2}, {"nome": "ADLA MILLENA GOMES BRANDAO", "valor": 89.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-13", "semana": 2}, {"nome": "ADLA MILLENA GOMES BRANDAO", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-14", "semana": 2}, {"nome": "ADRIELLE DOS SANTOS MAIA", "valor": 84.99, "estagio": "APROVADO", "data": "2026-04-06", "semana": 1}, {"nome": "ADRIELLE DOS SANTOS MAIA", "valor": 74.99, "estagio": "APROVADO", "data": "2026-04-06", "semana": 1}, {"nome": "ADRIELLE DOS SANTOS MAIA", "valor": 84.99, "estagio": "REJEITADO", "data": "2026-04-07", "semana": 1}, {"nome": "ADRIELLE DOS SANTOS MAIA", "valor": 89.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-08", "semana": 1}, {"nome": "ADRIELLE DOS SANTOS MAIA", "valor": 84.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-08", "semana": 1}, {"nome": "ADRIELLE DOS SANTOS MAIA", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-10", "semana": 1}, {"nome": "ADRIELLE DOS SANTOS MAIA", "valor": 89.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-13", "semana": 2}, {"nome": "ADRIELLE DOS SANTOS MAIA", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-13", "semana": 2}, {"nome": "ADRIELLE DOS SANTOS MAIA", "valor": 89.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-13", "semana": 2}, {"nome": "ADRIELLE DOS SANTOS MAIA", "valor": 99.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-14", "semana": 2}, {"nome": "ADRIELLE DOS SANTOS MAIA", "valor": 84.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-16", "semana": 2}, {"nome": "BRUNA EMILE SANTOS SENA", "valor": 67.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-15", "semana": 2}, {"nome": "BRUNA EMILE SANTOS SENA", "valor": 89.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-16", "semana": 2}, {"nome": "BRUNA EMILE SANTOS SENA", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-16", "semana": 2}, {"nome": "BRUNA EMILE SANTOS SENA", "valor": 67.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-16", "semana": 2}, {"nome": "BRUNA EMILE SANTOS SENA", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-16", "semana": 2}, {"nome": "CLAUDIA MOREIRA BISPO", "valor": 74.99, "estagio": "APROVADO", "data": "2026-04-01", "semana": 0}, {"nome": "CLAUDIA MOREIRA BISPO", "valor": 89.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-06", "semana": 1}, {"nome": "CLAUDIA MOREIRA BISPO", "valor": 99.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-07", "semana": 1}, {"nome": "CLAUDIA MOREIRA BISPO", "valor": 74.99, "estagio": "APROVADO", "data": "2026-04-07", "semana": 1}, {"nome": "CLAUDIA MOREIRA BISPO", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-08", "semana": 1}, {"nome": "CLAUDIA MOREIRA BISPO", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-09", "semana": 1}, {"nome": "CLAUDIA MOREIRA BISPO", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-13", "semana": 2}, {"nome": "CLAUDIA MOREIRA BISPO", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-14", "semana": 2}, {"nome": "CLAUDIA MOREIRA BISPO", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-14", "semana": 2}, {"nome": "CLAUDIA MOREIRA BISPO", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-14", "semana": 2}, {"nome": "CLAUDIA MOREIRA BISPO", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-17", "semana": 2}, {"nome": "GABRIELA ARAUJO SANTOS OLIVEIRA", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-08", "semana": 1}, {"nome": "GABRIELA ARAUJO SANTOS OLIVEIRA", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-08", "semana": 1}, {"nome": "GABRIELA ARAUJO SANTOS OLIVEIRA", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-08", "semana": 1}, {"nome": "GABRIELA ARAUJO SANTOS OLIVEIRA", "valor": 74.99, "estagio": "REJEITADO", "data": "2026-04-01", "semana": 0}, {"nome": "GABRIELA ARAUJO SANTOS OLIVEIRA", "valor": 74.99, "estagio": "APROVADO", "data": "2026-04-02", "semana": 0}, {"nome": "GABRIELA ARAUJO SANTOS OLIVEIRA", "valor": 74.99, "estagio": "APROVADO", "data": "2026-04-06", "semana": 1}, {"nome": "GABRIELA ARAUJO SANTOS OLIVEIRA", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-09", "semana": 1}, {"nome": "GABRIELA ARAUJO SANTOS OLIVEIRA", "valor": 74.99, "estagio": "CANCELADO", "data": "2026-04-10", "semana": 1}, {"nome": "GABRIELA ARAUJO SANTOS OLIVEIRA", "valor": 84.99, "estagio": "CANCELADO", "data": "2026-04-13", "semana": 2}, {"nome": "GABRIELA ARAUJO SANTOS OLIVEIRA", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-13", "semana": 2}, {"nome": "GABRIELA ARAUJO SANTOS OLIVEIRA", "valor": 89.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-14", "semana": 2}, {"nome": "HELOISA DA SILVA COELHO VIEIRA", "valor": 84.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-08", "semana": 1}, {"nome": "HELOISA DA SILVA COELHO VIEIRA", "valor": 89.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-08", "semana": 1}, {"nome": "HELOISA DA SILVA COELHO VIEIRA", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-10", "semana": 1}, {"nome": "HELOISA DA SILVA COELHO VIEIRA", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-10", "semana": 1}, {"nome": "LUANA GOMES DA SILVA", "valor": 74.99, "estagio": "CANCELADO", "data": "2026-04-15", "semana": 2}, {"nome": "LUANA GOMES DA SILVA", "valor": 84.99, "estagio": "APROVADO", "data": "2026-04-02", "semana": 0}, {"nome": "LUANA GOMES DA SILVA", "valor": 74.99, "estagio": "APROVADO", "data": "2026-04-04", "semana": 0}, {"nome": "LUANA GOMES DA SILVA", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-08", "semana": 1}, {"nome": "LUANA GOMES DA SILVA", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-08", "semana": 1}, {"nome": "LUANA GOMES DA SILVA", "valor": 84.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-14", "semana": 2}, {"nome": "LUANA GOMES DA SILVA", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-15", "semana": 2}, {"nome": "LUANA GOMES DA SILVA", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-15", "semana": 2}, {"nome": "LUANA GOMES DA SILVA", "valor": 84.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-15", "semana": 2}, {"nome": "MIKELLE SANTOS ARAUJO DE OLIVEIRA", "valor": 89.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-15", "semana": 2}, {"nome": "MIKELLE SANTOS ARAUJO DE OLIVEIRA", "valor": 99.99, "estagio": "CANCELADO", "data": "2026-04-07", "semana": 1}, {"nome": "MIKELLE SANTOS ARAUJO DE OLIVEIRA", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-09", "semana": 1}, {"nome": "MIKELLE SANTOS ARAUJO DE OLIVEIRA", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-14", "semana": 2}, {"nome": "MIKELLE SANTOS ARAUJO DE OLIVEIRA", "valor": 67.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-10", "semana": 1}, {"nome": "MIKELLE SANTOS ARAUJO DE OLIVEIRA", "valor": 89.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-10", "semana": 1}, {"nome": "MIKELLE SANTOS ARAUJO DE OLIVEIRA", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-13", "semana": 2}, {"nome": "MIKELLE SANTOS ARAUJO DE OLIVEIRA", "valor": 67.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-10", "semana": 1}, {"nome": "REBECA BRUNA CARVALHO DE SOUZA", "valor": 74.99, "estagio": "CANCELADO", "data": "2026-04-09", "semana": 1}, {"nome": "REBECA BRUNA CARVALHO DE SOUZA", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-13", "semana": 2}, {"nome": "REBECA BRUNA CARVALHO DE SOUZA", "valor": 74.99, "estagio": "APROVADO", "data": "2026-04-04", "semana": 0}, {"nome": "REBECA BRUNA CARVALHO DE SOUZA", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-07", "semana": 1}, {"nome": "REBECA BRUNA CARVALHO DE SOUZA", "valor": 99.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-08", "semana": 1}, {"nome": "REBECA BRUNA CARVALHO DE SOUZA", "valor": 67.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-08", "semana": 1}, {"nome": "REBECA BRUNA CARVALHO DE SOUZA", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-08", "semana": 1}, {"nome": "REBECA BRUNA CARVALHO DE SOUZA", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-09", "semana": 1}, {"nome": "REBECA BRUNA CARVALHO DE SOUZA", "valor": 67.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-13", "semana": 2}, {"nome": "REBECA BRUNA CARVALHO DE SOUZA", "valor": 67.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-13", "semana": 2}, {"nome": "REBECA BRUNA CARVALHO DE SOUZA", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-17", "semana": 2}, {"nome": "REBECA BRUNA CARVALHO DE SOUZA", "valor": 84.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-10", "semana": 1}, {"nome": "SAMILA VIEIRA DE SOUZA LIMA", "valor": 99.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-08", "semana": 1}, {"nome": "SAMILA VIEIRA DE SOUZA LIMA", "valor": 74.99, "estagio": "APROVADO", "data": "2026-04-02", "semana": 0}, {"nome": "SAMILA VIEIRA DE SOUZA LIMA", "valor": 74.99, "estagio": "APROVADO", "data": "2026-04-06", "semana": 1}, {"nome": "SAMILA VIEIRA DE SOUZA LIMA", "valor": 74.99, "estagio": "APROVADO", "data": "2026-04-06", "semana": 1}, {"nome": "SAMILA VIEIRA DE SOUZA LIMA", "valor": 74.99, "estagio": "APROVADO", "data": "2026-04-07", "semana": 1}, {"nome": "SAMILA VIEIRA DE SOUZA LIMA", "valor": 74.99, "estagio": "APROVADO", "data": "2026-04-07", "semana": 1}, {"nome": "SAMILA VIEIRA DE SOUZA LIMA", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-09", "semana": 1}, {"nome": "SAMILA VIEIRA DE SOUZA LIMA", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-10", "semana": 1}, {"nome": "SAMILA VIEIRA DE SOUZA LIMA", "valor": 84.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-10", "semana": 1}, {"nome": "SAMILA VIEIRA DE SOUZA LIMA", "valor": 84.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-11", "semana": 1}, {"nome": "SAMILA VIEIRA DE SOUZA LIMA", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-13", "semana": 2}, {"nome": "SAMILA VIEIRA DE SOUZA LIMA", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-13", "semana": 2}, {"nome": "SAMILA VIEIRA DE SOUZA LIMA", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-13", "semana": 2}, {"nome": "SAMILA VIEIRA DE SOUZA LIMA", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-16", "semana": 2}, {"nome": "SAMILA VIEIRA DE SOUZA LIMA", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-17", "semana": 2}, {"nome": "VANESSA SOARES SOUSA", "valor": 99.99, "estagio": "APROVADO", "data": "2026-04-04", "semana": 0}, {"nome": "VANESSA SOARES SOUSA", "valor": 89.99, "estagio": "APROVADO", "data": "2026-04-01", "semana": 0}, {"nome": "VANESSA SOARES SOUSA", "valor": 84.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-09", "semana": 1}, {"nome": "VANESSA SOARES SOUSA", "valor": 84.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-09", "semana": 1}, {"nome": "VANESSA SOARES SOUSA", "valor": 89.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-09", "semana": 1}, {"nome": "VANESSA SOARES SOUSA", "valor": 84.99, "estagio": "APROVADO", "data": "2026-04-02", "semana": 0}, {"nome": "VANESSA SOARES SOUSA", "valor": 84.99, "estagio": "APROVADO", "data": "2026-04-02", "semana": 0}, {"nome": "VANESSA SOARES SOUSA", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-17", "semana": 2}, {"nome": "VANESSA SOARES SOUSA", "valor": 84.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-07", "semana": 1}, {"nome": "VANESSA SOARES SOUSA", "valor": 84.99, "estagio": "APROVADO", "data": "2026-04-06", "semana": 1}, {"nome": "VANESSA SOARES SOUSA", "valor": 74.99, "estagio": "APROVADO", "data": "2026-04-06", "semana": 1}, {"nome": "VANESSA SOARES SOUSA", "valor": 74.99, "estagio": "APROVADO", "data": "2026-04-06", "semana": 1}, {"nome": "VANESSA SOARES SOUSA", "valor": 67.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-10", "semana": 1}, {"nome": "VANESSA SOARES SOUSA", "valor": 84.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-14", "semana": 2}, {"nome": "VITORIA KAROLYNE PEREIRA DE JESUS", "valor": 99.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-07", "semana": 1}, {"nome": "VITORIA KAROLYNE PEREIRA DE JESUS", "valor": 67.99, "estagio": "REJEITADO", "data": "2026-04-07", "semana": 1}, {"nome": "VITORIA KAROLYNE PEREIRA DE JESUS", "valor": 67.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-10", "semana": 1}, {"nome": "VITORIA KAROLYNE PEREIRA DE JESUS", "valor": 67.99, "estagio": "APROVADO", "data": "2026-04-02", "semana": 0}, {"nome": "VITORIA KAROLYNE PEREIRA DE JESUS", "valor": 67.99, "estagio": "APROVADO", "data": "2026-04-02", "semana": 0}, {"nome": "VITORIA KAROLYNE PEREIRA DE JESUS", "valor": 67.99, "estagio": "REJEITADO", "data": "2026-04-07", "semana": 1}, {"nome": "VITORIA KAROLYNE PEREIRA DE JESUS", "valor": 74.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-09", "semana": 1}, {"nome": "VITORIA KAROLYNE PEREIRA DE JESUS", "valor": 84.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-10", "semana": 1}, {"nome": "VITORIA KAROLYNE PEREIRA DE JESUS", "valor": 89.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-10", "semana": 1}, {"nome": "VITORIA KAROLYNE PEREIRA DE JESUS", "valor": 67.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-13", "semana": 2}, {"nome": "VITORIA KAROLYNE PEREIRA DE JESUS", "valor": 67.99, "estagio": "EM APROVAÇÃO", "data": "2026-04-13", "semana": 2}];
+const PRELOADED_MONTH_KEY   = 'abr26';
+const PRELOADED_MONTH_LABEL = 'Abril/26';
 
 /* SEMANAS_BASE: agora começa genérico — é REGENERADO automaticamente
    pela função rebuildSemanasFromMonth() ao importar um arquivo,
@@ -747,7 +759,7 @@ const DEFAULT_CFG = {
   colReceita:'R$ Vendas',
   colEstagio:'Estágio Contrato Proxxima',
   colData:'Date (Data Venda Contrato Proxxima)',
-  remoteUrl:'https://docs.google.com/spreadsheets/d/1tyXHIxYfmTTKSOMMyPyTXnIySnDOhJeWdZBSxjtyn8g/export?format=csv',
+  remoteUrl:'',
   atendentes:{},
 };
 
@@ -762,8 +774,7 @@ const fName= n => { const w=(n||'').trim().split(' '); return w[0]; };
 const set$ = (id,v) => { const e=document.getElementById(id); if(e) e.textContent=v??'—'; };
 const setH = (id,v) => { const e=document.getElementById(id); if(e) e.innerHTML=v??''; };
 const chip = (t,c)  => `<span class="tag ${c}">${t}</span>`;
-const isActiveStatus = r => (r.status||'Ativa') === 'Ativa'; // Regra 3: usado apenas para badge/visual, nao filtra faturamento
-const isActive = r => true; // Faturamento soberano: todos aparecem no ranking e KPIs
+const isActive = r => (r.status||'Ativa') === 'Ativa';
 
 const statusTag = (p, status) => {
   if(status==='Férias')   return chip('🏖 Férias','t0');
@@ -805,38 +816,78 @@ function toast(msg,type='ok'){
 function saveSettings(){
   try{
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      version:7, cfg:CFG, data:DATA, rawRows:RAW_ROWS, semanas:SEMANAS_BASE,
+      version:11, cfg:CFG, data:DATA, rawRows:RAW_ROWS, semanas:SEMANAS_BASE,
       activeMonthKey, activeMonthLabel
     }));
   }catch(e){console.warn('[dash_settings_v7] save error',e);}
 }
 function loadSettings(){
+  /* v11: BASE_MESTRA já vem pré-alimentada com dados reais do XLSX Abril/26.
+     localStorage só é usado se tiver dados válidos de uma importação manual
+     feita NESTA versão (STORAGE_KEY = dash_prox_v11). Caso contrário,
+     BASE_MESTRA + PRELOADED_RAW são sempre a fonte de verdade inicial. */
+  function applyPreloaded(){
+    CFG={...DEFAULT_CFG};
+    DATA=JSON.parse(JSON.stringify(BASE_MESTRA));
+    SEMANAS_BASE=JSON.parse(JSON.stringify(PRELOADED_SEMANAS));
+    RAW_ROWS=JSON.parse(JSON.stringify(PRELOADED_RAW));
+    activeMonthKey=PRELOADED_MONTH_KEY;
+    activeMonthLabel=PRELOADED_MONTH_LABEL;
+  }
   try{
     const raw=localStorage.getItem(STORAGE_KEY);
     if(raw){
       const p=JSON.parse(raw);
       CFG={...DEFAULT_CFG,...(p.cfg||{})};
-      if(Array.isArray(p.data)&&p.data.length>0){
+
+      /* Verifica se o localStorage tem dados reais (alguém importou um XLSX nessa sessão) */
+      const hasRealData=Array.isArray(p.rawRows)&&p.rawRows.length>0
+                     && Array.isArray(p.data)&&p.data.some(r=>(r.s1||0)+(r.s2||0)+(r.s3||0)+(r.s4||0)>0);
+
+      if(hasRealData){
+        /* Dados de importação manual — restaurar do localStorage */
         DATA=p.data;
         DATA.forEach(r=>{
           if(!r.losses) r.losses={cancel:[0,0,0,0,0,0],reject:[0,0,0,0,0,0]};
           if(!r.qtd)    r.qtd=[0,0,0,0,0,0];
+          if(!r.emAprov)r.emAprov=[0,0,0,0,0,0];
           if(!r.metaSem) r.metaSem=340;
           if(!r.status) r.status='Ativa';
         });
-      } else { DATA=JSON.parse(JSON.stringify(BASE_MESTRA)); }
-      if(Array.isArray(p.rawRows)) RAW_ROWS=p.rawRows;
-      if(Array.isArray(p.semanas)&&p.semanas.length) SEMANAS_BASE=p.semanas;
-      if(p.activeMonthKey) activeMonthKey=p.activeMonthKey;
-      if(p.activeMonthLabel) activeMonthLabel=p.activeMonthLabel;
+        if(Array.isArray(p.rawRows)) RAW_ROWS=p.rawRows;
+        if(Array.isArray(p.semanas)&&p.semanas.length) SEMANAS_BASE=p.semanas;
+        if(p.activeMonthKey) activeMonthKey=p.activeMonthKey;
+        if(p.activeMonthLabel) activeMonthLabel=p.activeMonthLabel;
+        /* Preserva status/fotos/metas customizadas do CFG */
+        console.log('[v11] Dados restaurados do localStorage: '+RAW_ROWS.length+' registros');
+      } else {
+        /* localStorage existe mas sem dados reais — usa BASE_MESTRA pré-alimentada
+           mas preserva configurações (fotos, metas, status dos atendentes) */
+        applyPreloaded();
+        /* Restaura apenas CFG.atendentes (fotos, status, metas customizadas) */
+        if(p.cfg&&p.cfg.atendentes){
+          if(!CFG.atendentes)CFG.atendentes={};
+          Object.assign(CFG.atendentes, p.cfg.atendentes);
+          /* Aplica status/metas customizadas sobre DATA */
+          DATA.forEach(r=>{
+            const ca=CFG.atendentes[r.name];
+            if(ca){
+              if(ca.status)r.status=ca.status;
+              if(ca.metaInd)r.metaInd=ca.metaInd;
+              if(ca.metaSem)r.metaSem=ca.metaSem;
+            }
+          });
+        }
+        console.log('[v11] localStorage sem dados reais — usando BASE_MESTRA pré-alimentada');
+      }
     } else {
-      CFG={...DEFAULT_CFG};
-      DATA=JSON.parse(JSON.stringify(BASE_MESTRA));
+      /* Primeiro acesso — sem localStorage */
+      applyPreloaded();
+      console.log('[v11] Primeiro boot — BASE_MESTRA pré-alimentada: Abril/26');
     }
   }catch(e){
-    console.warn('[dash_settings_v7] load error',e);
-    CFG={...DEFAULT_CFG};
-    DATA=JSON.parse(JSON.stringify(BASE_MESTRA));
+    console.warn('[v11] loadSettings error',e);
+    applyPreloaded();
   }
 }
 
@@ -846,27 +897,25 @@ function computeData(){
     /* Soma TODAS as semanas dinâmicas de SEMANAS_BASE (até 6) */
     const total=SEMANAS_BASE.reduce((s,sm)=>s+(r[sm.key]||0),0);
     const totalQtd=(r.qtd||[]).reduce((a,b)=>a+(b||0),0);
-    /* Regra 3: status Ferias/Atestado/Licenca ZERA META (isento), nao o realizado.
-       O faturamento e exibido 100%. pct=null remove do ranking competitivo. */
-    const statusAtual=r.status||'Ativa';
-    const isIsento=statusAtual==='Férias'||statusAtual==='Atestado'||statusAtual==='Licença';
-    const metaBase=r.metaInd??CFG.metaInd??1362;
-    const meta=isIsento?0:metaBase;
-    const p=isIsento?null:(meta>0?total/meta:null);
+    const active=isActive(r);
+    /* FIX 2: meta real para cálculo de pct (nunca zerá-lo por status).
+       metaDisplay=0 para não-ativa (aparece no card como "sem meta").
+       pct SEMPRE calculado se metaReal>0 — faturamento é intocável.       */
+    const metaReal=(r.metaInd??CFG.metaInd??1362)||CFG.metaInd||1362;
+    const metaDisplay=active?metaReal:0;        // KPI do time soma 0 para afastadas
+    const p=metaReal>0?total/metaReal:null;     // pct calculado sempre
     const totalLoss=((r.losses?.cancel||[]).reduce((a,b)=>a+b,0))+((r.losses?.reject||[]).reduce((a,b)=>a+b,0));
-    const totalEmAprov=(r.emAprov||[]).reduce((a,b)=>a+(b||0),0); // Regra 4
-    return {...r,total,totalQtd,meta,pct:p,totalLoss,isIsento,totalEmAprov};
+    const totalEmAprov=(r.emAprov||[]).reduce((a,b)=>a+(b||0),0);
+    return {...r,total,totalQtd,meta:metaDisplay,metaReal,pct:p,totalLoss,totalEmAprov};
   }).sort((a,b)=>{
-    /* Ativos competitivos primeiro, depois isentos — ambos com faturamento visivel */
-    if(!a.isIsento&&b.isIsento)return -1;
-    if(a.isIsento&&!b.isIsento)return 1;
-    return (b.pct||0)-(a.pct||0);
+    if(isActive(a)&&!isActive(b))return -1;
+    if(!isActive(a)&&isActive(b))return 1;
+    return (b.total||0)-(a.total||0);    // ordena por total quando pct igual
   });
 }
 
 function semanalTotals(){
-  /* Regra 3: semanalTotals inclui TODOS os vendedores (isentos tambem faturaram) */
-  const rows=computeData();
+  const rows=computeData().filter(r=>isActive(r));
   return SEMANAS_BASE.map((s,i)=>({
     ...s,
     real:rows.reduce((acc,r)=>acc+(r[s.key]||0),0),
@@ -893,16 +942,14 @@ function renderAll(){
 
 /* ──────────── KPIs ──────────── */
 function renderKPIs(d){
-  /* Regra 3: faturamento total soma TODOS (incluindo isentos) */
-  const competitivos=d.filter(r=>!r.isIsento);
-  const isentos=d.filter(r=>r.isIsento);
-  const total=d.reduce((s,r)=>s+r.total,0); // soma todos para KPI de receita
-  const meta=competitivos.reduce((s,r)=>s+r.meta,0); // meta so dos ativos
+  const active=d.filter(r=>isActive(r));
+  const total=active.reduce((s,r)=>s+r.total,0);
+  const meta=active.reduce((s,r)=>s+r.meta,0);
   const pctVal=pct(total,meta)*100;
-  const qtdTot=d.reduce((s,r)=>s+r.totalQtd,0);
+  const qtdTot=active.reduce((s,r)=>s+r.totalQtd,0);
   const ticket=qtdTot>0?total/qtdTot:0;
   const lider=d.find(r=>r.pct!==null);
-  const ausentes=isentos;
+  const ausentes=d.filter(r=>!isActive(r));
   const totalCancel=d.reduce((s,r)=>s+((r.losses?.cancel||[]).reduce((a,b)=>a+b,0)),0);
   const totalReject=d.reduce((s,r)=>s+((r.losses?.reject||[]).reduce((a,b)=>a+b,0)),0);
   const totalLoss=totalCancel+totalReject;
@@ -914,8 +961,8 @@ function renderKPIs(d){
   set$('kPct',fP(pctVal));
   set$('kQtd',qtdTot.toString());
   set$('kQtdSub',`Ticket médio: ${brl(ticket)}`);
-  set$('kAtiv',`${competitivos.length} / ${d.length}`);
-  set$('kAtivSub',isentos.length?`${isentos.length} isenta(s)`:'Todas ativas');
+  set$('kAtiv',`${active.length} / ${d.length}`);
+  set$('kAtivSub',ausentes.length?`${ausentes.length} afastada(s)`:'Todas ativas');
   set$('kLoss',totalLoss>0?`${totalLoss} ⚠️`:'0');
   set$('kLossSub',`${totalCancel} cancel · ${totalReject} rejeit`);
 
@@ -961,7 +1008,7 @@ function renderVisaoCharts(d){
   renderVisaoChart();
 }
 function renderVisaoChart(){
-  const d=computeData().filter(r=>!r.isIsento);
+  const d=computeData().filter(r=>isActive(r));
   const mode=document.getElementById('visaoFilter')?.value||'receita';
   const labels=d.map(r=>fName(r.name));
   const vals=mode==='receita'?d.map(r=>r.total):d.map(r=>r.totalQtd);
@@ -979,9 +1026,8 @@ function renderRanking(){
   const d=computeData();
   const mode=document.getElementById('rankFilter')?.value||'receita';
   const sorted=[...d].sort((a,b)=>{
-    /* Regra 3: isentos vao para baixo do ranking, mas com faturamento visivel */
-    if(!a.isIsento&&b.isIsento)return -1;
-    if(a.isIsento&&!b.isIsento)return 1;
+    if(isActive(a)&&!isActive(b))return -1;
+    if(!isActive(a)&&isActive(b))return 1;
     if(mode==='qtd')return b.totalQtd-a.totalQtd;
     if(mode==='pct')return (b.pct||0)-(a.pct||0);
     return b.total-a.total;
@@ -990,24 +1036,24 @@ function renderRanking(){
   if(!tb)return;
   let pos=0;
   tb.innerHTML=sorted.map(r=>{
-    const active=!r.isIsento; // Regra 3: isentos nao entram no rank numerado
+    const active=isActive(r);
     if(active)pos++;
+    /* FIX 2e: pct calculado para TODOS — não bloquear barra por status */
     const p=r.pct!==null?Math.min(r.pct,1):0;
-    const pT=r.isIsento?r.status:(r.pct!==null?fP(r.pct*100):'—');
+    const pT=r.pct!==null?fP(r.pct*100):'—';         // sempre mostra % real
     const cl=pos===1?'p1':pos===2?'p2':pos===3?'p3':'pn';
     const co=pCol(r.pct);
-    const totalCancel=(r.losses?.cancel||[]).reduce((a,b)=>a+b,0);
-    const totalReject=(r.losses?.reject||[]).reduce((a,b)=>a+b,0);
-    const totalLoss=totalCancel+totalReject;
-    const emAprovQtd=r.totalEmAprov||0;
-    /* Regra 4: tag laranja para EM APROVACAO separada da tag vermelha de perdas */
-    const aprovTag=emAprovQtd>0?`<span class="warn-tag" style="background:rgba(255,163,47,.18);color:#FF9F43;margin-right:3px">⏳ ${emAprovQtd}</span>`:'';
-    const lossTag=totalLoss>2
+    const totalLoss=(r.losses?.cancel||[]).reduce((a,b)=>a+b,0)+(r.losses?.reject||[]).reduce((a,b)=>a+b,0);
+    const lossCell=totalLoss>2
       ?`<span class="alert-tag">⚠️ ${totalLoss}</span>`
       :totalLoss>0
         ?`<span class="warn-tag">⚠️ ${totalLoss}</span>`
         :`<span style="color:var(--green);font-size:11px">✓ 0</span>`;
-    const lossCell=aprovTag+lossTag;
+    /* FIX 3g: célula de Em Aprovação */
+    const emAprovTotal=r.totalEmAprov||0;
+    const emAprovCell=emAprovTotal>0
+      ?`<span class="warn-tag" style="background:var(--yd);color:var(--yel)">⏳ ${emAprovTotal}</span>`
+      :`<span style="color:var(--mu);font-size:11px">—</span>`;
     const metaSemVal=r.metaSem||CFG.metaSem||340;
     // Semana atual: última com dados
     const semKeys=['s1','s2','s3','s4'];
@@ -1022,10 +1068,10 @@ function renderRanking(){
       <td style="font-size:11px">${brlK(r.s4||0)}</td>
       <td style="font-weight:700">${brl(r.total)}</td>
       <td style="color:var(--tx2)">${r.totalQtd||0}</td>
-      <td><div class="meta-badge"><span class="meta-badge-real">${active?brl(r.total):'—'}</span><span class="meta-badge-meta">Meta: ${active?brl(r.meta):'—'}</span></div></td>
-      <td><div class="meta-badge"><span class="meta-badge-real">${active?brlK(currSemVal):'—'}</span><span class="meta-badge-sem">Meta: ${active?brlK(metaSemVal):'—'}</span></div></td>
+      <td><div class="meta-badge"><span class="meta-badge-real">${brl(r.total)}</span><span class="meta-badge-meta">Meta: ${active?brl(r.metaReal||r.meta):'Afastada'}</span></div></td>
+      <td><div class="meta-badge"><span class="meta-badge-real">${brlK(currSemVal)}</span><span class="meta-badge-sem">Meta: ${active?brlK(metaSemVal):'—'}</span></div></td>
       <td style="font-weight:700;color:${co}">${pT}</td>
-      <td>${lossCell}</td>
+      <td>${lossCell}</td><td>${emAprovCell}</td>
       <td><div class="mbar"><div class="mbar-f" style="width:${(p*100).toFixed(0)}%;background:${co}"></div></div></td>
       <td>${statusTag(r.pct,r.status)}</td>
     </tr>`;
@@ -1034,7 +1080,8 @@ function renderRanking(){
 
 /* ──────────── PÓDIO ──────────── */
 function renderPodio(d){
-  const top=(d||computeData()).filter(r=>r.pct!==null).slice(0,3);
+  /* FIX 2f: incluir não-ativas com pct calculado no pódio */
+  const top=(d||computeData()).filter(r=>r.pct!==null&&r.total>0).slice(0,3);
   const el=document.getElementById('podioScene');
   if(!el)return;
   if(!top.length){el.innerHTML='<div class="empty"><div class="empty-i">🏆</div><p>Importe dados para ver o pódio</p></div>';return;}
@@ -1046,19 +1093,16 @@ function renderPodio(d){
     const ri=oIdx[i];
     const cfg=CFG.atendentes?.[r.name]||{};
     const foto=cfg.foto||'';
-    const seal=r.isIsento?sealHtml(r.status):''; // Regra 3: selo apenas para isentos
+    const seal=!isActive(r)?sealHtml(r.status):'';
     const av=foto?`<img src="${foto}" alt="${r.name}">`:ini(r.name);
     const metaSemVal=r.metaSem||CFG.metaSem||340;
     const semKeys=['s1','s2','s3','s4'];
     let currSemVal=0;
     for(let j=3;j>=0;j--){if(r[semKeys[j]]>0){currSemVal=r[semKeys[j]];break;}}
     const totalLoss=((r.losses?.cancel||[]).reduce((a,b)=>a+b,0))+((r.losses?.reject||[]).reduce((a,b)=>a+b,0));
-    const podioEmAprov=r.totalEmAprov||0;
-    /* Regra 4: tag laranja/amarela para EM APROVACAO no podio */
-    const aprovPodio=podioEmAprov>0?`<div style="margin:4px auto 0;display:inline-flex;align-items:center;gap:4px;background:rgba(255,163,47,.18);border:1px solid rgba(255,163,47,.35);padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;color:#FF9F43">⏳ ${podioEmAprov} em aprovação</div>`:'';
-    const lossHtml=(totalLoss>0
+    const lossHtml=totalLoss>0
       ?`<div style="margin:4px auto 0;display:inline-flex;align-items:center;gap:4px;background:rgba(255,85,114,.18);border:1px solid rgba(255,85,114,.3);padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;color:var(--red)">⚠️ ${totalLoss} perda(s)</div>`
-      :`<div style="font-size:9px;color:var(--green);margin-top:3px">✓ Sem perdas</div>`)+aprovPodio;
+      :`<div style="font-size:9px;color:var(--green);margin-top:3px">✓ Sem perdas</div>`;
     const semColor=currSemVal>=metaSemVal?'var(--green)':currSemVal>=metaSemVal*.7?'var(--yel)':'var(--red)';
     return `<div class="pi ${rCls[ri]}">
       <div class="pi-av">${av}${seal}</div>
@@ -1112,7 +1156,7 @@ function renderSemanal(){
     ]},options:{...CD,responsive:true,maintainAspectRatio:false}
   });
 
-  const top5=computeData().filter(r=>!r.isIsento).slice(0,5);
+  const top5=computeData().filter(r=>isActive(r)).slice(0,5);
   const hCols=['#FFD700','#E8007D','#4A78FF','#00DFA2','#FF9F43'];
   mkChart('cIndiv',{
     type:'bar',data:{
@@ -1135,7 +1179,7 @@ function renderHistorico(){
   ];
   if(sel) sel.innerHTML=months.map(m=>`<button class="mb${currentMonth===m.key?' on':''}" onclick="selMonth(this,'${m.key}')">${m.label}</button>`).join('');
   renderMonthTable(currentMonth);
-  const top5=computeData().filter(r=>!r.isIsento).slice(0,5);
+  const top5=computeData().filter(r=>isActive(r)).slice(0,5);
   const hC=['#FFD700','#E8007D','#4A78FF','#00DFA2','#FF9F43'];
   mkChart('cHist',{
     type:'line',data:{
@@ -1161,7 +1205,7 @@ function selMonth(el,key){
 function renderMonthTable(key){
   const lbl=document.getElementById('mLabel');
   if(key==='atual'){
-    const d=computeData().filter(r=>!r.isIsento);
+    const d=computeData().filter(r=>isActive(r));
     if(lbl)lbl.textContent=(activeMonthLabel||'Mês atual')+' (importado)';
     const head=document.getElementById('mHead');
     const wkKeys=SEMANAS_BASE.map(s=>s.key);
@@ -1207,7 +1251,7 @@ function renderMonthTable(key){
 /* ──────────── INSIGHTS & RECORDES ──────────── */
 function renderInsights(d){
   d=d||computeData();
-  const active=d.filter(r=>!r.isIsento); // competitivos para metricas principais
+  const active=d.filter(r=>isActive(r));
   const total=active.reduce((s,r)=>s+r.total,0);
   const meta=active.reduce((s,r)=>s+r.meta,0);
   const qtdTot=active.reduce((s,r)=>s+r.totalQtd,0);
@@ -1365,7 +1409,7 @@ function renderQualidade(){
   const d=computeData();
   const lb=document.getElementById('lossBody');
   if(lb){
-    lb.innerHTML=d.filter(r=>!r.isIsento).map(r=>{ // competitivos
+    lb.innerHTML=d.filter(r=>isActive(r)).map(r=>{
       const cancelSem=(r.losses?.cancel||[0,0,0,0]).reduce((a,b)=>a+b,0); // total semana atual = soma
       const rejectSem=(r.losses?.reject||[0,0,0,0]).reduce((a,b)=>a+b,0);
       const cancelMes=cancelSem; // mês = mesma janela por ora
@@ -1433,6 +1477,9 @@ function buildConfigUI(d){
     const badgeTx=status==='Ativa'?'● Ativa':status;
     const totalLossAtd=((r.losses?.cancel||[]).reduce((a,b)=>a+b,0))+((r.losses?.reject||[]).reduce((a,b)=>a+b,0));
     const lossAtdHtml=totalLossAtd>0?`<span class="tag tr" style="font-size:9px;margin-top:4px;display:inline-flex">⚠️ ${totalLossAtd} perda(s)</span>`:'';
+    /* FIX 3f: tag ⏳ de EM APROVAÇÃO */
+    const totalEmAprovAtd=(r.emAprov||[]).reduce((a,b)=>a+(b||0),0);
+    const emAprovAtdHtml=totalEmAprovAtd>0?`<span class="tag ty" style="font-size:9px;margin-top:4px;display:inline-flex">⏳ ${totalEmAprovAtd} em aprov.</span>`:'';
     const currSemRealAtd=(()=>{const sks=['s1','s2','s3','s4','s5','s6'];for(let j=5;j>=0;j--){if(r[sks[j]]>0)return r[sks[j]];}return 0;})();
     const metaSAtd=cfgA.metaSem||r.metaSem||CFG.metaSem||340;
     const semAtdColor=currSemRealAtd>=metaSAtd?'var(--green)':currSemRealAtd>0?'var(--yel)':'var(--mu)';
@@ -1444,6 +1491,7 @@ function buildConfigUI(d){
           <div class="atd-role">Atendente Comercial</div>
           <span class="tag ${badgeCls}" style="font-size:9px;margin-top:4px;display:inline-flex">${badgeTx}</span>
           ${lossAtdHtml}
+          ${emAprovAtdHtml}
           <div style="font-size:9px;color:${semAtdColor};margin-top:3px">Sem atual: ${brlK(currSemRealAtd)} / Meta: ${brlK(metaSAtd)}</div>
         </div>
       </div>
@@ -1489,9 +1537,10 @@ function setAtdStatus(name,status){
   const r=DATA.find(d=>d.name===name);
   if(r){
     r.status=status;
-    /* Regra 3: nao tocamos em metaInd aqui — computeData zera a meta dos isentos
-       dinamicamente, preservando o valor base para quando retornarem de ferias */
-    if(status==='Ativa') r.metaInd=CFG.atendentes[name]?.metaInd||CFG.metaInd||1362;
+    /* FIX 2c: NÃO zerar metaInd por status — faturamento é intocável.
+       metaDisplay=0 para não-ativas é calculado em computeData().          */
+    if(status==='Ativa')r.metaInd=CFG.atendentes[name]?.metaInd||CFG.metaInd||1362;
+    // se não-ativa, mantém o metaInd real para o cálculo de pct
   }
   buildConfigUI(computeData());
 }
@@ -1537,8 +1586,8 @@ function saveConfig(){
     const cfgA=CFG.atendentes?.[r.name];
     const ns=cfgA?.status||r.status||'Ativa';
     r.status=ns;
-    /* Regra 3: preserva metaInd base — computeData aplica meta=0 dinamicamente para isentos */
-    r.metaInd=cfgA?.metaInd||CFG.metaInd||1362;
+    /* FIX 2d: manter metaInd real independente do status */
+    r.metaInd=cfgA?.metaInd||r.metaInd||CFG.metaInd||1362;
     if(cfgA?.metaSem)r.metaSem=cfgA.metaSem;
   });
   saveSettings();renderAll();
@@ -1555,7 +1604,7 @@ function clearCsvData(){
     if(cfgA?.status)r.status=cfgA.status;
     if(cfgA?.metaInd)r.metaInd=cfgA.metaInd;
     if(cfgA?.metaSem)r.metaSem=cfgA.metaSem;
-    if(r.status!=='Ativa')r.metaInd=0;
+    /* FIX 2 (v11): NÃO zerar metaInd — faturamento/barra de Férias/Atestado/Licença visíveis sempre. */
   });
   saveSettings();renderAll();
   setUzStatus('Dados limpos','ok');toast('🗑️ Dados CSV limpos. Base restaurada.');
@@ -1608,6 +1657,7 @@ function importBackup(file){
         DATA.forEach(r=>{
           if(!r.losses)r.losses={cancel:[0,0,0,0,0,0],reject:[0,0,0,0,0,0]};
           if(!r.qtd)r.qtd=[0,0,0,0,0,0];
+          if(!r.emAprov)r.emAprov=[0,0,0,0,0,0]; /* FIX 3e */
           if(!r.status)r.status='Ativa';
         });
       }
@@ -1682,16 +1732,20 @@ function setUzStatus(msg,cls){
   if(el){el.textContent=msg;el.className='uz-status '+(cls||'');}
 }
 
-/* ──────────── XLSX PARSER (v9 — usa SheetJS) ──────────── */
+/* ──────────── XLSX PARSER (v11) ──────────── */
 function processXLSX(buffer,fname){
-  const wb=XLSX.read(buffer,{type:'arraybuffer',cellDates:true,raw:false});
+  /* FIX 1 (v11): Usamos raw:false + dateNF:'YYYY-MM-DD' para forçar o SheetJS
+     a formatar colunas de data como strings ISO 'YYYY-MM-DD'.
+     Isso elimina o bug de fuso-horário em que Date objects UTC convertidos para
+     local mudavam o mês (ex: 2026-04-08T00:00Z virava 2026-03-07 em UTC-4),
+     ou o bug inverso onde serial Excel (46120) era passado cru e new Date(46120)
+     retornava uma data de 1970. Com dateNF o SheetJS entrega '2026-04-08'. */
+  const wb=XLSX.read(buffer,{type:'arraybuffer',cellDates:false,raw:false,dateNF:'YYYY-MM-DD'});
   const sheetName=wb.SheetNames[0];
   const ws=wb.Sheets[sheetName];
-  // defval:'' garante que células vazias viram string vazia em vez de undefined
-  const rows=XLSX.utils.sheet_to_json(ws,{defval:'',raw:false});
+  const rows=XLSX.utils.sheet_to_json(ws,{defval:'',raw:false,dateNF:'YYYY-MM-DD'});
   if(!rows.length)throw new Error('Planilha vazia ou sem registros');
-  // Log para debug: mostra as primeiras colunas encontradas
-  if(rows[0])console.log('[v9] XLSX colunas detectadas:',Object.keys(rows[0]).slice(0,10).join(' | '));
+  if(rows[0])console.log('[v11] XLSX colunas:',Object.keys(rows[0]).slice(0,10).join(' | '));
   processRows(rows,fname);
 }
 
@@ -1784,7 +1838,7 @@ function processRows(rows,fname,colMap){
     return k?row[k]:'';
   };
 
-  /* PASS 1 — descobre o mês predominante via split('-') — sem new Date() para evitar bug de fuso */
+  /* PASS 1 — descobre o mês predominante (votação por contagem de datas válidas) */
   const monthVotes={};
   const dateCache=[];
   for(const row of rows){
@@ -1792,9 +1846,7 @@ function processRows(rows,fname,colMap){
     const ds=normalizeDateStr(dRaw,row);
     dateCache.push(ds);
     if(/^\d{4}-\d{2}-\d{2}/.test(ds)){
-      /* Usa split para extrair YYYY-MM sem qualquer conversão de fuso horário */
-      const parts=ds.substring(0,10).split('-');
-      const k=parts[0]+'-'+parts[1]; // YYYY-MM seguro
+      const k=ds.substring(0,7); // YYYY-MM
       monthVotes[k]=(monthVotes[k]||0)+1;
     }
   }
@@ -1808,7 +1860,7 @@ function processRows(rows,fname,colMap){
     r.s1=0;r.s2=0;r.s3=0;r.s4=0;r.s5=0;r.s6=0;
     r.qtd=[0,0,0,0,0,0];
     r.losses={cancel:[0,0,0,0,0,0],reject:[0,0,0,0,0,0]};
-    r.emAprov=[0,0,0,0,0,0]; // Regra 4: reset do contador EM APROVACAO
+    r.emAprov=[0,0,0,0,0,0];  /* FIX 3b: reset EM APROVAÇÃO por semana */
   });
   RAW_ROWS=[];
   let imported=0,skippedUnit=0,skippedNoMatch=0;
@@ -1830,20 +1882,18 @@ function processRows(rows,fname,colMap){
     const statusU=statusRaw.toUpperCase();
     const isCancelado=estagio==='CANCELADO'||statusU==='CANCELADO';
     const isRejeitado=estagio==='REJEITADO'||estagio==='REPROVADO'||statusU==='REJEITADO'||statusU==='REPROVADO';
-    /* Regra 4: EM APROVAÇÃO é contabilizado financeiramente (soma no R$ Vendas) */
-    const isEmAprovacao=estagio==='EM APROVAÇÃO'||estagio==='EM APROVACAO'||estagio==='PENDENTE'||estagio==='AGUARDANDO APROVAÇÃO'||estagio==='AGUARDANDO APROVACAO';
-    const estagioNorm=isCancelado?'CANCELADO':isRejeitado?'REJEITADO':isEmAprovacao?'EM APROVAÇÃO':(estagio||'EM APROVAÇÃO');
 
-    RAW_ROWS.push({nome:nameRaw,valor:val,estagio:estagioNorm,data:dateStr,semana:weekIdx});
+    RAW_ROWS.push({nome:nameRaw,valor:val,estagio:isCancelado?'CANCELADO':(isRejeitado?'REJEITADO':(estagio||'EM APROVAÇÃO')),data:dateStr,semana:weekIdx});
 
     /* Match por nome — exato normalizado primeiro.
        Fallback: 3+ palavras significativas (>3 chars) devem coincidir.
-       Evita falso-positivo: "BRUNA EMILE" != "REBECA BRUNA";
-       "GABRIELA ARAUJO SANTOS OLIVEIRA" != "MIKELLE SANTOS ARAUJO DE OLIVEIRA" */
+       Evita falso-positivo: "BRUNA EMILE" ≠ "REBECA BRUNA";
+       "GABRIELA ARAUJO SANTOS OLIVEIRA" ≠ "MIKELLE SANTOS ARAUJO DE OLIVEIRA" */
     const nameN=normStr(nameRaw);
     const found=DATA.find(d=>{
       const dn=normStr(d.name);
-      if(dn===nameN)return true;
+      if(dn===nameN)return true; // match exato normalizado (caso mais comum)
+      // fallback seguro: mínimo 3 palavras significativas em comum
       const nw=nameN.split(' ').filter(w=>w.length>3);
       const dw=dn.split(' ').filter(w=>w.length>3);
       const shared=nw.filter(w=>dw.includes(w));
@@ -1854,31 +1904,34 @@ function processRows(rows,fname,colMap){
     const sKey=['s1','s2','s3','s4','s5','s6'][weekIdx]||'s1';
     if(!found.qtd||found.qtd.length<6)found.qtd=[0,0,0,0,0,0];
     if(!found.losses)found.losses={cancel:[0,0,0,0,0,0],reject:[0,0,0,0,0,0]};
-    if(!found.emAprov)found.emAprov=[0,0,0,0,0,0]; // Regra 4: contador EM APROVAÇÃO
     if(found.losses.cancel.length<6)found.losses.cancel=[...found.losses.cancel,0,0].slice(0,6);
     if(found.losses.reject.length<6)found.losses.reject=[...found.losses.reject,0,0].slice(0,6);
+    if(!found.emAprov||found.emAprov.length<6)found.emAprov=[0,0,0,0,0,0]; /* FIX 3 */
 
     if(isCancelado){
-      /* CANCELADO: conta perda, NAO soma no faturamento */
+      /* CANCELADO: conta como perda, NÃO soma ao faturamento */
       found.losses.cancel[weekIdx]=(found.losses.cancel[weekIdx]||0)+1;
     } else if(isRejeitado){
-      /* REJEITADO: conta perda, NAO soma no faturamento */
+      /* FIX 4: REJEITADO também NÃO soma ao faturamento (era bug — estava na branch else) */
       found.losses.reject[weekIdx]=(found.losses.reject[weekIdx]||0)+1;
     } else {
-      /* Regra 4: EM APROVACAO e APROVADO somam no R$ Vendas */
+      /* APROVADO + EM APROVAÇÃO → somam ao faturamento normalmente */
       found[sKey]=(found[sKey]||0)+val;
       found.qtd[weekIdx]=(found.qtd[weekIdx]||0)+1;
-      if(isEmAprovacao){
+      /* FIX 3d: contar EM APROVAÇÃO separadamente para exibir tag ⏳ */
+      const isEmAprov=estagio==='EM APROVAÇÃO'||estagio==='EM APROVACAO'||estagio.includes('APROVA')&&estagio.includes('EM ');
+      if(isEmAprov){
+        if(!found.emAprov||found.emAprov.length<6)found.emAprov=[0,0,0,0,0,0];
         found.emAprov[weekIdx]=(found.emAprov[weekIdx]||0)+1;
       }
     }
     imported++;
   });
 
-  console.log(`[v10] ${fname}: ${imported} contabilizados | ${skippedNoMatch} sem match | mes: ${detectedMonth||'(nenhum)'} | emAprov: ${RAW_ROWS.filter(r=>r.estagio==='EM APROVAÇÃO').length} | todas as unidades`);
+  console.log(`[v11] ${fname}: ${imported} contratos contabilizados | ${skippedNoMatch} sem match no time | mês detectado: ${detectedMonth||'(nenhum)'}`);
   // Debug: total por atendente para validação
   const totais=DATA.filter(r=>r.s1||r.s2||r.s3||r.s4).map(r=>`${r.name.split(' ')[0]}: ${(SEMANAS_BASE.reduce((s,sm)=>s+(r[sm.key]||0),0)).toFixed(2)}`);
-  if(totais.length)console.log('[v9] Totais por atendente:',totais.join(' | '));
+  if(totais.length)console.log('[v11] Totais por atendente:',totais.join(' | '));
   if(imported===0&&RAW_ROWS.length===0)
     throw new Error(`Nenhum registro válido encontrado no arquivo. Verifique se há coluna "R$ Vendas" e "Nome Colaborador".`);
 }
@@ -1904,31 +1957,60 @@ function rebuildSemanasFromMonth(yyyymm){
   }
   SEMANAS_BASE=sems;
   // Mapeia mês para chave do histórico
-  /* Regra 2: usa índices numéricos (sem new Date) para evitar bug de fuso horário */
   const mesNomes=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   const slugs=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
-  const mIdx=m-1; // m já vem de split('-') — sem fuso horário
-  activeMonthKey=slugs[mIdx]+String(y).slice(-2);
-  activeMonthLabel=mesNomes[mIdx]+'/'+String(y).slice(-2);
+  activeMonthKey=slugs[m-1]+String(y).slice(-2);
+  activeMonthLabel=mesNomes[m-1]+'/'+String(y).slice(-2);
   currentMonth='atual';
 }
 
 /* ──────────── DATE UTILS ──────────── */
 function normalizeDateStr(v,row){
-  if(!v)return '';
-  if(v instanceof Date)return v.toISOString().substring(0,10);
-  // SheetJS pode retornar Date objects ou strings
+  if(v===null||v===undefined||v==='')return '';
+
+  /* FIX 1 (v11): Date objects → hora LOCAL, nunca UTC (toISOString muda o mês em fusos negativos) */
+  if(v instanceof Date){
+    if(isNaN(v.getTime()))return '';
+    const y=v.getFullYear(), mo=v.getMonth()+1, d=v.getDate();
+    return `${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  }
+
+  /* FIX 1 (v11): Número puro → serial Excel (ex: 46120 = 2026-04-08).
+     Base do Excel = 1899-12-30. Converte sem fuso-horário. */
+  if(typeof v==='number'&&!isNaN(v)&&v>1){
+    const msPerDay=86400000;
+    const excelEpoch=new Date(1899,11,30).getTime(); // 30 Dez 1899 (local)
+    const dt=new Date(excelEpoch + v*msPerDay);
+    const y=dt.getFullYear(), mo=dt.getMonth()+1, d=dt.getDate();
+    return `${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  }
+
   const s=String(v).trim();
-  if(/^\d{4}-\d{2}-\d{2}/.test(s))return s.substring(0,10);
+
+  /* YYYY-MM-DD (ISO) — split('-')[1] garante mês real (regra 1: nunca confundir dia/mês) */
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)){
+    const pts=s.substring(0,10).split('-');
+    return `${pts[0]}-${pts[1].padStart(2,'0')}-${pts[2].padStart(2,'0')}`;
+  }
+
+  /* DD/MM/AAAA (padrão Brasil) */
   if(/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)){
     const parts=s.split('/');
-    const p0=parseInt(parts[0]),p1=parseInt(parts[1]);
-    if(p0>12)return `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
-    return `${parts[2]}-${parts[0].padStart(2,'0')}-${parts[1].padStart(2,'0')}`;
+    const p0=parseInt(parts[0]);
+    if(p0>12){
+      // Inequivocamente DD/MM/AAAA
+      return `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
+    }
+    // Assume DD/MM/AAAA (padrão Brasil)
+    return `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
   }
-  // Tenta conversão genérica
-  const d=new Date(s);
-  if(!isNaN(d.getTime()))return d.toISOString().substring(0,10);
+
+  /* Último recurso: força T12:00:00 para evitar armadilha de meia-noite UTC */
+  const d=new Date(s.includes('T')?s:s+'T12:00:00');
+  if(!isNaN(d.getTime())){
+    const y=d.getFullYear(), mo=d.getMonth()+1, dd=d.getDate();
+    return `${y}-${String(mo).padStart(2,'0')}-${String(dd).padStart(2,'0')}`;
+  }
   return s;
 }
 
@@ -2059,56 +2141,31 @@ async function loadFromRemoteUrl(showToast){
   if(!url){ if(showToast)toast('⚠️ Configure uma URL primeiro.','err'); return; }
   setRemoteStatus('⏳ Carregando dados de '+url.substring(0,60)+'...');
   try{
-    /* Detecta se é CSV do Google Sheets (export?format=csv) ou JSON legado */
-    const isCsv=url.includes('format=csv')||url.endsWith('.csv');
-    /* CORS: usa proxy allorigins para Google Sheets */
-    const fetchUrl=url.includes('docs.google.com')
-      ?'https://api.allorigins.win/raw?url='+encodeURIComponent(url)
-      :url;
-    const resp=await fetch(fetchUrl,{cache:'no-store'});
-    if(!resp.ok)throw new Error('HTTP '+resp.status);
-    if(isCsv){
-      /* Processa CSV com XLSX para máxima compatibilidade */
-      const csvText=await resp.text();
-      if(!csvText||csvText.trim().length<10)throw new Error('CSV vazio ou inacessível');
-      const wb=XLSX.read(csvText,{type:'string',raw:false});
-      const ws=wb.Sheets[wb.SheetNames[0]];
-      const rows=XLSX.utils.sheet_to_json(ws,{defval:'',raw:false});
-      if(!rows.length)throw new Error('CSV sem registros válidos');
-      console.log('[remote-csv] Colunas:',Object.keys(rows[0]||{}).slice(0,10).join(' | '));
-      console.log('[remote-csv] Total linhas:',rows.length);
-      processRows(rows,'google-sheets-remoto');
-      saveSettings();renderAll();
-      confettiFired=false;
-      setRemoteStatus('✅ Sincronizado em '+new Date().toLocaleTimeString('pt-BR')+' · '+RAW_ROWS.length+' registros · '+activeMonthLabel,'ok');
-      if(showToast)toast('☁️ Google Sheets sincronizado! '+RAW_ROWS.length+' registros carregados.');
-    } else {
-      /* Modo legado: JSON exportado pelo próprio dashboard */
-      const p=await resp.json();
-      if(!p||p.app!=='BI-Jacobina')throw new Error('JSON inválido (app != BI-Jacobina)');
-      if(p.cfg) CFG={...DEFAULT_CFG,...p.cfg,remoteUrl:url};
-      if(Array.isArray(p.data)&&p.data.length>0){
-        DATA=p.data;
-        DATA.forEach(d=>{
-          if(!d.losses)d.losses={cancel:[0,0,0,0,0,0],reject:[0,0,0,0,0,0]};
-          if(!d.qtd)d.qtd=[0,0,0,0,0,0];
-          if(!d.status)d.status='Ativa';
-        });
-      }
-      if(Array.isArray(p.rawRows)) RAW_ROWS=p.rawRows;
-      if(Array.isArray(p.semanas)&&p.semanas.length) SEMANAS_BASE=p.semanas;
-      if(p.activeMonthKey) activeMonthKey=p.activeMonthKey;
-      if(p.activeMonthLabel) activeMonthLabel=p.activeMonthLabel;
-      if(p.historico){['jan26','fev26','mar26'].forEach(k=>{if(p.historico[k])HISTORICO[k]=p.historico[k];});}
-      saveSettings();renderAll();
-      const ts=p.exportedAt?new Date(p.exportedAt).toLocaleString('pt-BR'):'agora';
-      setRemoteStatus('✅ Sincronizado em '+new Date().toLocaleTimeString('pt-BR')+' · gerado em '+ts,'ok');
-      if(showToast)toast('☁️ Dashboard sincronizado da nuvem!');
+    const r=await fetch(url,{cache:'no-store'});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const p=await r.json();
+    if(!p||p.app!=='BI-Jacobina')throw new Error('JSON inválido (app != BI-Jacobina)');
+    if(p.cfg) CFG={...DEFAULT_CFG,...p.cfg, remoteUrl:url}; // preserva URL local
+    if(Array.isArray(p.data)&&p.data.length>0){
+      DATA=p.data;
+      DATA.forEach(r=>{
+        if(!r.losses)r.losses={cancel:[0,0,0,0,0,0],reject:[0,0,0,0,0,0]};
+        if(!r.qtd)r.qtd=[0,0,0,0,0,0];
+        if(!r.status)r.status='Ativa';
+      });
     }
+    if(Array.isArray(p.rawRows)) RAW_ROWS=p.rawRows;
+    if(Array.isArray(p.semanas)&&p.semanas.length) SEMANAS_BASE=p.semanas;
+    if(p.activeMonthKey) activeMonthKey=p.activeMonthKey;
+    if(p.activeMonthLabel) activeMonthLabel=p.activeMonthLabel;
+    if(p.historico){ ['jan26','fev26','mar26'].forEach(k=>{ if(p.historico[k]) HISTORICO[k]=p.historico[k]; }); }
+    saveSettings(); renderAll();
+    const ts=p.exportedAt?new Date(p.exportedAt).toLocaleString('pt-BR'):'agora';
+    setRemoteStatus(`✅ Sincronizado em ${new Date().toLocaleTimeString('pt-BR')} · gerado em ${ts}`,'ok');
+    if(showToast)toast('☁️ Dashboard sincronizado da nuvem!');
   }catch(err){
     setRemoteStatus('❌ Erro: '+err.message,'err');
     if(showToast)toast('❌ Falha ao carregar URL: '+err.message,'err');
-    console.error('[remote] Erro ao sincronizar:',err);
   }
 }
 function exportBackupForCloud(){
@@ -2135,9 +2192,17 @@ window.addEventListener('load',()=>{
   loadSettings();
   runSplash(()=>{
     renderAll();
-    toast('BI Comercial v10 · Próxima Telecom · Sincronizando Google Sheets...');
-    /* Auto-sincronização com Google Sheets na abertura */
-    if(CFG.remoteUrl){ setTimeout(()=>loadFromRemoteUrl(false), 800); }
+    // Status bar: informa se os dados são pré-carregados ou do localStorage
+    const uzEl=document.getElementById('uzSt');
+    if(uzEl){
+      if(RAW_ROWS.length>0){
+        uzEl.textContent=`✅ ${RAW_ROWS.length} registros carregados · Abril/26 · Importe um novo XLSX para atualizar`;
+        uzEl.className='uz-status ok';
+      }
+    }
+    toast('✅ BI Comercial v11 · Abril/26 pré-carregado · ' + RAW_ROWS.length + ' contratos');
+    // Auto-sincronização remota se URL configurada
+    if(CFG.remoteUrl){ setTimeout(()=>loadFromRemoteUrl(false), 500); }
   });
 });
 </script>
