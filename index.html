@@ -952,7 +952,7 @@ function saveSettings(){
   try{
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       version:11, cfg:CFG, data:DATA, rawRows:RAW_ROWS, semanas:SEMANAS_BASE,
-      activeMonthKey, activeMonthLabel
+      activeMonthKey, activeMonthLabel, fotoMap:FOTO_MAP
     }));
   }catch(e){console.warn('[dash_settings_v7] save error',e);}
 }
@@ -995,12 +995,14 @@ function loadSettings(){
         if(Array.isArray(p.semanas)&&p.semanas.length) SEMANAS_BASE=p.semanas;
         if(p.activeMonthKey) activeMonthKey=p.activeMonthKey;
         if(p.activeMonthLabel) activeMonthLabel=p.activeMonthLabel;
+        if(p.fotoMap && typeof p.fotoMap==='object') FOTO_MAP=p.fotoMap;
         /* Preserva status/fotos/metas customizadas do CFG */
         console.log('[v11] Dados restaurados do localStorage: '+RAW_ROWS.length+' registros');
       } else {
         /* localStorage existe mas sem dados reais — usa BASE_MESTRA pré-alimentada
            mas preserva configurações (fotos, metas, status dos atendentes) */
         applyPreloaded();
+        if(p.fotoMap && typeof p.fotoMap==='object') FOTO_MAP=p.fotoMap;
         /* Restaura apenas CFG.atendentes (fotos, status, metas customizadas) */
         if(p.cfg&&p.cfg.atendentes){
           if(!CFG.atendentes)CFG.atendentes={};
@@ -1949,6 +1951,7 @@ function clearCsvData(){
   if(!confirm('Limpar dados importados e voltar ao estado vazio?'))return;
   DATA=JSON.parse(JSON.stringify(BASE_MESTRA));
   RAW_ROWS=[];
+  FOTO_MAP={};
   SEMANAS_BASE=buildEmptySemanas('Aguardando importação');
   activeMonthKey=null; activeMonthLabel='—'; currentMonth='atual';
   DATA.forEach(r=>{
@@ -1967,6 +1970,7 @@ function resetConfig(){
   CFG={...DEFAULT_CFG};
   DATA=JSON.parse(JSON.stringify(BASE_MESTRA));
   RAW_ROWS=[];
+  FOTO_MAP={};
   SEMANAS_BASE=buildEmptySemanas('Aguardando importação');
   activeMonthKey=null; activeMonthLabel='—'; currentMonth='atual';
   renderAll();toast('↺ Configurações restauradas ao padrão.');
@@ -1985,6 +1989,7 @@ function exportBackup(){
     activeMonthKey,
     activeMonthLabel,
     historico:HISTORICO,
+    fotoMap:FOTO_MAP,
   };
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob);
@@ -2017,6 +2022,7 @@ function importBackup(file){
       if(Array.isArray(p.semanas)&&p.semanas.length) SEMANAS_BASE=p.semanas;
       if(p.activeMonthKey) activeMonthKey=p.activeMonthKey;
       if(p.activeMonthLabel) activeMonthLabel=p.activeMonthLabel;
+      if(p.fotoMap&&typeof p.fotoMap==='object') FOTO_MAP=p.fotoMap;
       if(p.historico){
         ['jan26','fev26','mar26'].forEach(k=>{ if(p.historico[k]) HISTORICO[k]=p.historico[k]; });
       }
