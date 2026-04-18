@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Próxima Telecom · BI Jacobina v14 · Google Sheets</title>
+<title>Próxima Telecom · BI Jacobina v15 · Google Sheets</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -795,12 +795,12 @@ body>*{position:relative;z-index:1}
        Tags ⚠️ dinâmicas de atenção (canc + rejeit)
 ═════════════════════════════════════════════ */
 
-/* ══ v14 · RESET TOTAL DE CACHE ══════════════════════════════════════════════
-   localStorage.clear() elimina QUALQUER dado de projetos/versões anteriores.
-   Executado ANTES de qualquer leitura, garante estado 100% limpo.          */
+/* ══ v15 · RESET TOTAL DE CACHE ══════════════════════════════════════════════
+   REGRA 1: localStorage.clear() é a PRIMEIRA instrução executada.
+   Elimina 100% dos dados de versões anteriores antes de qualquer leitura.  */
 localStorage.clear();
 
-const STORAGE_KEY = 'dash_prox_v14';
+const STORAGE_KEY = 'dash_prox_v15';
 
 /* ──────────── BASE MESTRA ──────────── */
 /* RECALCULADA: somente registros com estagio=APROVADO somam ao faturamento.
@@ -873,7 +873,7 @@ const DEFAULT_CFG = {
   colReceita:'R$ Vendas',
   colEstagio:'Estágio Contrato Proxxima',
   colData:'Date (Data Venda Contrato Proxxima)',
-  // CORREÇÃO 5 — URL oficial sempre forçada (não deixa cache sobrescrever)
+  // REGRA 6 — URL oficial com gid=86460305 (aba correta de Abril/2026)
   remoteUrl:'https://docs.google.com/spreadsheets/d/e/2PACX-1vQRyBLzWAGIjsrm-s84rVUQ1yQaHmUYYOT469RSF-fxfwp7Q5M0_zwT6eTCeBiASNyrfA314pehjKY_/pub?gid=86460305&single=true&output=csv', autoRefreshMin:5,
   atendentes:{},
 };
@@ -937,9 +937,8 @@ function saveSettings(){
   }catch(e){console.warn('[dash_settings_v7] save error',e);}
 }
 function loadSettings(){
-  /* v12-fix: BASE_MESTRA foi recalculada com regra correta (só APROVADO soma).
-     Apaga qualquer localStorage da versão anterior para garantir dados limpos. */
-  const LEGACY_KEYS = ['dash_prox_v11','dash_prox_v10','dash_prox_v9','dash_prox_v8'];
+  /* v15: limpa TODAS as chaves legacy incluindo v14 — estado 100% limpo */
+  const LEGACY_KEYS = ['dash_prox_v14','dash_prox_v13','dash_prox_v12','dash_prox_v11','dash_prox_v10','dash_prox_v9','dash_prox_v8'];
   LEGACY_KEYS.forEach(k => { try{ localStorage.removeItem(k); }catch(e){} });
 
   function applyPreloaded(){
@@ -1052,7 +1051,7 @@ function semanalTotals(){
   }));
 }
 
-/* ──────────── RENDER ALL ──────────── */
+/* ──────────── RENDER ALL (v15) ──────────── */
 function renderAll(){
   const d=computeData();
   renderKPIs(d);
@@ -1063,6 +1062,7 @@ function renderAll(){
   renderHistorico();
   renderInsights(d);
   renderQualidade();
+  renderAprovadosPorAtendente(d);
   buildConfigUI(d);
 }
 
@@ -1981,18 +1981,18 @@ function processText(raw,fname){
   processRows(rows,fname,{ixN,ixU,ixV,ixE,ixD,header,rawHeader});
 }
 
-/* ──────────── CORE PROCESSOR (v6) ──────────── */
+/* ──────────── CORE PROCESSOR (v15 · Legado XLSX/CSV) ──────────── */
+/* Mesmas regras do processStructuredRows: filtro Abril/2026, UPPERCASE,
+   semanas manuais, lista de conferência no console.                  */
 function processRows(rows,fname,colMap){
-  /* CORREÇÃO 9a: normStr UPPERCASE sem acentos — mesma lógica do processStructuredRows */
+  /* REGRA 3: normStr UPPERCASE + trim() — "Aline" === "ALINE" */
   const normStr=s=>{
     const nfd=String(s||'').trim().toUpperCase().normalize('NFD');
     let r='';
     for(let i=0;i<nfd.length;i++){const cc=nfd.charCodeAt(i);if(cc<0x0300||cc>0x036f)r+=nfd[i];}
     return r.replace(/\s+/g,' ').trim();
   };
-  /* v8: filtro de unidade REMOVIDO — soma todas as linhas com R$ Vendas */
 
-  /* CORREÇÃO 9b: parseVal robusto para formato brasileiro */
   const parseVal=v=>{
     if(v===null||v===undefined||v==='')return 0;
     if(typeof v==='number')return isNaN(v)?0:v;
@@ -2004,24 +2004,19 @@ function processRows(rows,fname,colMap){
       clean+=c;
     }
     if(!clean)return 0;
-    const hasDot=clean.includes('.');
-    const hasComma=clean.includes(',');
+    const hasDot=clean.includes('.'),hasComma=clean.includes(',');
     let n;
     if(hasDot&&hasComma){
-      const lastDot=clean.lastIndexOf('.');
-      const lastComma=clean.lastIndexOf(',');
-      if(lastComma>lastDot){n=parseFloat(clean.split('.').join('').replace(',','.'))}
-      else{n=parseFloat(clean.split(',').join(''))}
+      const lastDot=clean.lastIndexOf('.'),lastComma=clean.lastIndexOf(',');
+      n=lastComma>lastDot?parseFloat(clean.split('.').join('').replace(',','.')):parseFloat(clean.split(',').join(''));
     }else if(hasComma&&!hasDot){n=parseFloat(clean.replace(',','.'))}
     else if(hasDot&&!hasComma){
       const afterDot=clean.substring(clean.lastIndexOf('.')+1);
-      if(afterDot.length===3){n=parseFloat(clean.split('.').join(''))}
-      else{n=parseFloat(clean)}
+      n=afterDot.length===3?parseFloat(clean.split('.').join('')):parseFloat(clean);
     }else{n=parseFloat(clean)}
     return isNaN(n)?0:n;
   };
 
-  /* CORREÇÃO 9c: normalizeStatus — padroniza variantes antes de classificar */
   const normalizeStatus=raw=>{
     const s=String(raw||'').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
     if(s.startsWith('CANCEL'))return 'CANCELADO';
@@ -2032,89 +2027,77 @@ function processRows(rows,fname,colMap){
   };
 
   const getField=(row,candidates)=>{
-    // 1. Exact match first (preserves special chars like R$ and accents)
     for(const c of candidates){
       if(row[c]!==undefined&&row[c]!==null&&row[c]!=='')return row[c];
     }
-    // 2. Trimmed exact match (whitespace issues)
     const keys=Object.keys(row);
     for(const c of candidates){
       const ct=c.trim();
       const k=keys.find(k=>k.trim()===ct);
       if(k&&row[k]!==undefined&&row[k]!==null&&row[k]!=='')return row[k];
     }
-    // 3. Normalized match
     const normC=candidates.map(x=>normStr(x));
     const k=keys.find(k=>normC.some(nc=>normStr(k)===nc||normStr(k).includes(nc)||nc.includes(normStr(k))));
     return k?row[k]:'';
   };
 
-  // PASS 1 — Forçar Abril/2026. Sem votação de mês — estrito.
-  const ABRIL_YYYY_MM = '2026-04';
+  /* REGRA 2: Pré-filtro ESTRITO — mantém apenas Abril/2026 */
+  const ABRIL_YYYY_MM='2026-04';
   const dateCache=[];
   for(const row of rows){
     const dRaw=getField(row,[CFG.colData||'Date (Data Venda Contrato Proxxima)','Date (Data Venda Contrato Proxxima)','Data Venda','date','Data']);
-    const ds=normalizeDateStr(dRaw,row);
-    dateCache.push(ds);
+    dateCache.push(normalizeDateStr(dRaw,row));
   }
-  let detectedMonth = ABRIL_YYYY_MM;
+
+  const rowsAbril=[],dateCacheAbril=[];
+  rows.forEach((row,ri)=>{
+    const ds=dateCache[ri];
+    if(!ds||!/^\d{4}-\d{2}-\d{2}/.test(ds))return;
+    if(ds.substring(0,7)!==ABRIL_YYYY_MM)return;
+    rowsAbril.push(row);dateCacheAbril.push(ds);
+  });
+  console.log(`[v15 Legado] Pré-filtro: ${rows.length} linhas → ${rowsAbril.length} de Abril/2026`);
+
+  /* REGRA 4: Semanas via Aba Config */
   rebuildSemanasFromMonth(ABRIL_YYYY_MM);
 
-  /* PASS 2 — reset e contabiliza */
+  /* Reset total */
   DATA.forEach(r=>{
     r.s1=0;r.s2=0;r.s3=0;r.s4=0;r.s5=0;r.s6=0;
     r.qtd=[0,0,0,0,0,0];
     r.losses={cancel:[0,0,0,0,0,0],reject:[0,0,0,0,0,0]};
-    r.emAprov=[0,0,0,0,0,0];  /* FIX 3b: reset EM APROVAÇÃO por semana */
+    r.emAprov=[0,0,0,0,0,0];
   });
   RAW_ROWS=[];
-  let imported=0,skippedUnit=0,skippedNoMatch=0;
+  let imported=0,skippedNoMatch=0;
 
-  rows.forEach((row,ri)=>{
-    // CORREÇÃO 3 — trim().toUpperCase() para unificar nomes com espaço/caixa diferente
+  rowsAbril.forEach((row,ri)=>{
+    const dateStr=dateCacheAbril[ri];
+    /* REGRA 3: UPPERCASE + trim() no nome */
     const nameRaw=String(getField(row,[CFG.colNome||'Nome Colaborador','Nome Colaborador','Nome','nome'])||'').trim().toUpperCase();
     if(!nameRaw)return;
-
-    /* v8: SEM filtro de unidade — qualquer linha com nome é processada */
 
     const valRaw=getField(row,[CFG.colReceita||'R$ Vendas','R$ Vendas','Valor','Receita']);
     const estagioRaw=String(getField(row,[CFG.colEstagio||'Estágio Contrato Proxxima','Estágio Contrato Proxxima','Estagio Contrato Proxxima','Estagio'])||'').trim();
     const statusRawField=String(getField(row,['Status Contrato Proxxima','Status','Tipo'])||'').trim();
     const tipoRaw=String(getField(row,['Tipo','tipo'])||'').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-    const dateStr=dateCache[ri];
 
-    // CORREÇÃO 2 — Filtro estrito Abril/2026: descarta qualquer registro fora de /04/2026
-    if(!dateStr || !/^\d{4}-\d{2}-\d{2}/.test(dateStr)) return;
-    if(dateStr.substring(0,7) !== ABRIL_YYYY_MM) return;
-
+    /* REGRA 4: getWeekIdxFromDate usa data_venda >= inicio_semana && data_venda <= fim_semana */
     const weekIdx=getWeekIdxFromDate(dateStr);
-
     const val=parseVal(valRaw);
-
-    /* CORREÇÃO 9d: usa normalizeStatus para padronizar estágio e status */
     const estagioNorm=normalizeStatus(estagioRaw);
     const statusNorm=normalizeStatus(statusRawField);
 
-    /* REGRAS CORRIGIDAS — FATURAMENTO BRUTO (todos os status somam):
-       ✔ s1..s6 = bruto: APROVADO + EM APROVAÇÃO + CANCELADO + REJEITADO
-       ✔ estagio=APROVADO → apenas para indicador de aprovados (RAW_ROWS.estagio)
-       ✔ Perdas → apenas para contagem de losses[]
-       ✔ EM APROVAÇÃO → emAprov[] separado */
     const hasTipo=tipoRaw==='VENDA'||tipoRaw==='PERDA';
     const isCancelado=estagioNorm==='CANCELADO'||statusNorm==='CANCELADO';
     const isRejeitado=estagioNorm==='REJEITADO'||statusNorm==='REJEITADO';
     const isPerda=tipoRaw==='PERDA'||isCancelado||isRejeitado;
     const isEmAprov=estagioNorm==='EM APROVACAO'||statusNorm==='EM APROVACAO';
-    const isAprovado=hasTipo?(tipoRaw==='VENDA'&&statusNorm==='APROVADO')
-                            :(estagioNorm==='APROVADO'||statusNorm==='APROVADO');
-
+    const isAprovado=hasTipo?(tipoRaw==='VENDA'&&statusNorm==='APROVADO'):(estagioNorm==='APROVADO'||statusNorm==='APROVADO');
     const estagioLabel=isCancelado?'CANCELADO':isRejeitado?'REJEITADO':isPerda?'PERDA':isEmAprov?'EM APROVAÇÃO':isAprovado?'APROVADO':estagioNorm||statusNorm;
 
     RAW_ROWS.push({nome:nameRaw,valor:val,estagio:estagioLabel,data:dateStr,semana:weekIdx});
 
-    // Filtro de Abril/2026 já aplicado acima — não é necessário filtrar aqui
-
-    /* CORREÇÃO 9e: match de nome — normStr agora é UPPERCASE sem acentos */
     const nameN=normStr(nameRaw);
     const found=DATA.find(d=>{
       const dn=normStr(d.name);
@@ -2126,7 +2109,7 @@ function processRows(rows,fname,colMap){
     });
     if(!found){
       skippedNoMatch++;
-      if(skippedNoMatch<=10)console.warn('[v12] Sem match para nome:',nameRaw,'→',nameN);
+      if(skippedNoMatch<=10)console.warn('[v15 Legado] Sem match para nome:',nameRaw,'→',nameN);
       return;
     }
 
@@ -2137,25 +2120,40 @@ function processRows(rows,fname,colMap){
     if(found.losses.reject.length<6)found.losses.reject=[...found.losses.reject,...Array(6)].slice(0,6);
     if(!found.emAprov||found.emAprov.length<6)found.emAprov=[0,0,0,0,0,0];
 
-    /* FATURAMENTO BRUTO: todos os registros do mês somam ao total por semana */
     found[sKey]=(found[sKey]||0)+val;
     found.qtd[weekIdx]=(found.qtd[weekIdx]||0)+1;
 
-    if(isCancelado){
-      found.losses.cancel[weekIdx]=(found.losses.cancel[weekIdx]||0)+1;
-    } else if(isRejeitado||(isPerda&&!isCancelado)){
-      found.losses.reject[weekIdx]=(found.losses.reject[weekIdx]||0)+1;
-    } else if(isEmAprov){
-      found.emAprov[weekIdx]=(found.emAprov[weekIdx]||0)+1;
-    }
+    if(isCancelado){found.losses.cancel[weekIdx]=(found.losses.cancel[weekIdx]||0)+1;}
+    else if(isRejeitado||(isPerda&&!isCancelado)){found.losses.reject[weekIdx]=(found.losses.reject[weekIdx]||0)+1;}
+    else if(isEmAprov){found.emAprov[weekIdx]=(found.emAprov[weekIdx]||0)+1;}
     imported++;
   });
 
-  console.log(`[v11] ${fname}: ${imported} vendas aprovadas | ${skippedNoMatch} sem match | mês detectado: ${detectedMonth||'(nenhum)'}`);
-  const totais=DATA.filter(r=>r.s1||r.s2||r.s3||r.s4).map(r=>`${r.name.split(' ')[0]}: R$${(SEMANAS_BASE.reduce((s,sm)=>s+(r[sm.key]||0),0)).toFixed(2)} (${(r.qtd||[]).reduce((a,b)=>a+b,0)} vendas)`);
-  if(totais.length)console.log('[v11] Totais por atendente:',totais.join(' | '));
+  /* REGRA 5: Lista de conferência no console */
+  const conferencia={};
+  RAW_ROWS.forEach(r=>{
+    const k=normStr(r.nome);
+    if(!conferencia[k])conferencia[k]={nome:r.nome,total:0,qtd:0};
+    conferencia[k].total+=r.valor;conferencia[k].qtd++;
+  });
+  const listaConf=Object.values(conferencia).sort((a,b)=>b.total-a.total);
+  const totalBruto=RAW_ROWS.reduce((s,r)=>s+(r.valor||0),0);
+  const totalAprov=RAW_ROWS.filter(r=>r.estagio==='APROVADO').reduce((s,r)=>s+(r.valor||0),0);
+  console.log('');
+  console.log('╔══════════════════════════════════════════════════════════╗');
+  console.log('║  LISTA DE CONFERÊNCIA v15 · Abril/2026 · Legado XLSX    ║');
+  console.log('╠══════════════════════════════════════════════════════════╣');
+  listaConf.forEach((r,i)=>{const pad=(s,n)=>(s+'').padEnd(n);console.log(`  ${pad((i+1)+'.',3)} ${pad(r.nome,42)} R$ ${r.total.toFixed(2).padStart(9)}  (${r.qtd} reg.)`);});
+  console.log('╠══════════════════════════════════════════════════════════╣');
+  console.log(`  TOTAL BRUTO  : R$ ${totalBruto.toFixed(2)}`);
+  console.log(`  TOTAL APROVADO: R$ ${totalAprov.toFixed(2)}`);
+  console.log(`  Registros Abril/2026: ${RAW_ROWS.length} de ${rows.length} totais`);
+  console.log(`  Importados: ${imported} | Sem match: ${skippedNoMatch}`);
+  console.log('╚══════════════════════════════════════════════════════════╝');
+
+  console.log(`[v15 Legado] ${fname}: ${imported} reg. Abril/2026 | ${skippedNoMatch} sem match`);
   if(imported===0&&RAW_ROWS.length===0)
-    throw new Error(`Nenhum registro válido encontrado no arquivo. Verifique se há coluna "R$ Vendas" e "Nome Colaborador".`);
+    throw new Error(`Nenhum registro válido de Abril/2026 encontrado. Verifique as colunas "R$ Vendas" e "Nome Colaborador".`);
 }
 
 /* Reconstrói SEMANAS_BASE para o mês detectado (seg→dom).
@@ -2464,10 +2462,20 @@ function hasStructuredSchema(rows){
 }
 
 /* ── Process structured Google Sheets rows ── */
+/* ══════════════════════════════════════════════════════════════════════════
+   v15 · REESTRUTURAÇÃO TOTAL DA LÓGICA DE DADOS
+   REGRA 1: localStorage.clear() já executado na inicialização global
+   REGRA 2: Pré-processamento filtra ESTRITAMENTE Abril/2026 antes de tudo
+   REGRA 3: Nomes normalizados com UPPERCASE + trim() em TODO o pipeline
+   REGRA 4: Semanas usam EXCLUSIVAMENTE os períodos da Aba Config (manual)
+   REGRA 5: Console log "Nome | Valor Total" para conferência com Excel
+   REGRA 6: URL oficial com gid=86460305
+══════════════════════════════════════════════════════════════════════════ */
 function processStructuredRows(rows, source){
-  /* CORREÇÃO 1: normStr usa UPPERCASE para garantir match bidirecional
-     sem distinção de maiúsculas, minúsculas ou acentos.
-     "Gabriéla" → "GABRIELA", "MIKELLE" → "MIKELLE" — evita duplicatas e perdas. */
+
+  /* ── REGRA 3: normStr — UPPERCASE + trim() + sem acentos ─────────────────
+     "Aline", "ALINE", "aline " → todos viram "ALINE". Garante que o ranking
+     some corretamente independente de como o nome veio da planilha.        */
   const normStr = s => {
     const nfd = String(s||'').trim().toUpperCase().normalize('NFD');
     let r = '';
@@ -2475,67 +2483,43 @@ function processStructuredRows(rows, source){
       const cc=nfd.charCodeAt(i);
       if(cc<0x0300||cc>0x036f) r+=nfd[i];
     }
-    // Colapsa espaços múltiplos internos
     return r.replace(/\s+/g,' ').trim();
   };
-  /* CORREÇÃO 2: parseVal — suporte completo ao formato brasileiro.
-     "1.169,85" → 1169.85  |  "1169.85" → 1169.85  |  "R$ 1.169,85" → 1169.85
-     Lógica: se há vírgula E ponto → ponto é separador de milhar, vírgula é decimal.
-             se há só vírgula     → vírgula é decimal.
-             se há só ponto       → ponto pode ser decimal (ex: "1169.85") OU milhar
-               — diferencia pelo número de dígitos após o ponto:
-               ≤2 dígitos após último ponto → decimal; ≥3 → milhar (remove). */
+
+  /* ── parseVal robusto: suporte completo ao formato brasileiro ────────────
+     "R$ 74,99" → 74.99  |  "1.169,85" → 1169.85  |  "74.99" → 74.99    */
   const parseVal = v => {
-    if(v === null || v === undefined || v === '') return 0;
-    if(typeof v === 'number') return isNaN(v) ? 0 : v;
-    let clean = '';
-    const sv = String(v);
-    for(let i = 0; i < sv.length; i++){
-      const c = sv[i]; const cc = sv.charCodeAt(i);
-      // Remove R$, espaço, NBSP, TAB, letras isoladas prefix (R, $)
+    if(v===null||v===undefined||v==='') return 0;
+    if(typeof v==='number') return isNaN(v)?0:v;
+    let clean='';
+    const sv=String(v);
+    for(let i=0;i<sv.length;i++){
+      const c=sv[i]; const cc=sv.charCodeAt(i);
       if(c==='R'||c==='$'||cc===0x00A0||cc===0x0020||cc===0x0009) continue;
-      clean += c;
+      clean+=c;
     }
     if(!clean) return 0;
-    const hasDot   = clean.includes('.');
-    const hasComma = clean.includes(',');
+    const hasDot=clean.includes('.'), hasComma=clean.includes(',');
     let n;
-    if(hasDot && hasComma){
-      // "1.169,85" ou "1,169.85" — detecta qual é o separador decimal (último separador)
-      const lastDot   = clean.lastIndexOf('.');
-      const lastComma = clean.lastIndexOf(',');
-      if(lastComma > lastDot){
-        // vírgula é decimal: "1.169,85" → remove pontos, troca vírgula por ponto
-        n = parseFloat(clean.split('.').join('').replace(',','.'));
-      } else {
-        // ponto é decimal: "1,169.85" → remove vírgulas
-        n = parseFloat(clean.split(',').join(''));
-      }
-    } else if(hasComma && !hasDot){
-      // "1169,85" → vírgula é decimal
-      n = parseFloat(clean.replace(',','.'));
-    } else if(hasDot && !hasComma){
-      // "1169.85" ou "1.169" — diferencia pelo número de dígitos após o último ponto
-      const afterDot = clean.substring(clean.lastIndexOf('.')+1);
-      if(afterDot.length === 3){
-        // "1.169" → ponto é separador de milhar
-        n = parseFloat(clean.split('.').join(''));
-      } else {
-        // "1169.85" → ponto é decimal
-        n = parseFloat(clean);
-      }
+    if(hasDot&&hasComma){
+      const lastDot=clean.lastIndexOf('.'), lastComma=clean.lastIndexOf(',');
+      n = lastComma>lastDot
+        ? parseFloat(clean.split('.').join('').replace(',','.'))
+        : parseFloat(clean.split(',').join(''));
+    } else if(hasComma&&!hasDot){
+      n=parseFloat(clean.replace(',','.'));
+    } else if(hasDot&&!hasComma){
+      const afterDot=clean.substring(clean.lastIndexOf('.')+1);
+      n=afterDot.length===3?parseFloat(clean.split('.').join('')):parseFloat(clean);
     } else {
-      n = parseFloat(clean);
+      n=parseFloat(clean);
     }
-    return isNaN(n) ? 0 : n;
+    return isNaN(n)?0:n;
   };
-  const seenIds = new Set();
 
-  /* CORREÇÃO 3: normalizeStatus — mapeia TODAS as variantes conhecidas para o
-     canônico: CANCELADO | REJEITADO | APROVADO | EM APROVACAO.
-     Isso resolve "Cancelamento" sendo tratado de forma diferente de "Cancelado". */
+  /* ── normalizeStatus — mapeia todas as variantes ao canônico ─────────── */
   const normalizeStatus = raw => {
-    const s = String(raw||'').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    const s=String(raw||'').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
     if(s.startsWith('CANCEL'))                         return 'CANCELADO';
     if(s.startsWith('REJEIT')||s.startsWith('REPROV')) return 'REJEITADO';
     if(s==='EM APROVACAO'||s==='EM APROVAC'||
@@ -2544,20 +2528,42 @@ function processStructuredRows(rows, source){
     return s;
   };
 
-  // PASS 1: normaliza datas e FILTRA estritamente Abril/2026
-  // Aceita: YYYY-04-2026 (ISO) ou DD/04/2026 (Brasil) — month index 3 (abril)
+  /* ══════════════════════════════════════════════════════════════════════
+     REGRA 2: PRÉ-PROCESSAMENTO — FILTRO DE BASE ÚNICA (ABRIL/2026)
+     Remove QUALQUER linha que não seja estritamente do mês 04/2026.
+     Se não for Abril, o dado não entra no sistema. Ponto final.
+  ══════════════════════════════════════════════════════════════════════ */
   const ABRIL_YYYY_MM = '2026-04';
+
+  // PASS 1: normaliza todas as datas
   const dateCache = [];
   for(const row of rows){
     const dRaw = findCol(row,['Data Venda','DataVenda','data_venda','data','date']);
-    const ds = normalizeDateStr(dRaw, row);
-    dateCache.push(ds);
+    dateCache.push(normalizeDateStr(dRaw, row));
   }
-  // Força Abril/2026 — sem votação, sem detecção automática
-  rebuildSemanasFromMonth(ABRIL_YYYY_MM);
-  const detectedMonth = ABRIL_YYYY_MM;
 
-  // PASS 2: reset DATA
+  // Pré-filtro: mantém apenas linhas de Abril/2026
+  const rowsAbril = [];
+  const dateCacheAbril = [];
+  rows.forEach((row, ri) => {
+    const ds = dateCache[ri];
+    if(!ds) return;
+    if(!/^\d{4}-\d{2}-\d{2}/.test(ds)) return;
+    if(ds.substring(0,7) !== ABRIL_YYYY_MM) return; // DESCARTA se não for Abril/2026
+    rowsAbril.push(row);
+    dateCacheAbril.push(ds);
+  });
+  console.log(`[v15] Pré-filtro Abril/2026: ${rows.length} linhas recebidas → ${rowsAbril.length} de Abril/2026`);
+
+  /* ══════════════════════════════════════════════════════════════════════
+     REGRA 4: SEMANAS MANUAIS E ABSOLUTAS
+     rebuildSemanasFromMonth recria a estrutura de semanas para Abril/2026.
+     getWeekIdxFromDate usará ESTRITAMENTE os períodos da Aba Config.
+     Fórmula: data_venda >= inicio_semana && data_venda <= fim_semana
+  ══════════════════════════════════════════════════════════════════════ */
+  rebuildSemanasFromMonth(ABRIL_YYYY_MM);
+
+  // PASS 2: reset total de DATA e RAW_ROWS — zero resíduo de qualquer mês anterior
   DATA.forEach(r=>{
     r.s1=0;r.s2=0;r.s3=0;r.s4=0;r.s5=0;r.s6=0;
     r.qtd=[0,0,0,0,0,0];
@@ -2566,110 +2572,121 @@ function processStructuredRows(rows, source){
   });
   RAW_ROWS = [];
 
+  const seenIds = new Set();
   let imported=0, skipped=0, dupes=0;
 
-  rows.forEach((row, ri)=>{
-    // Deduplication by ID
+  // PASS 3: processa somente as linhas de Abril/2026 (pré-filtradas)
+  rowsAbril.forEach((row, ri) => {
+    const dateStr = dateCacheAbril[ri]; // já validada como Abril/2026
+
+    // Deduplicação por ID
     const id = String(findCol(row,['ID','id','Id'])||'').trim();
     if(id && seenIds.has(id)){ dupes++; return; }
     if(id) seenIds.add(id);
 
-    // CORREÇÃO 3 — Unificação: trim().toUpperCase() elimina duplicatas por espaço/caixa
+    /* REGRA 3: nome SEMPRE normalizado com UPPERCASE + trim()
+       "Aline Santos" e "ALINE SANTOS" e "aline santos " → "ALINE SANTOS" */
     const nameRaw = String(findCol(row,['Nome Colaborador','nome colaborador','colaborador','nome','vendedor'])||'').trim().toUpperCase();
     if(!nameRaw) return;
 
     const valRaw = findCol(row,['Valor Venda','valor venda','valor','receita','r$ vendas','rs vendas']);
-    const val = parseVal(valRaw);
+    const val    = parseVal(valRaw);
 
-    /* CORREÇÃO 4: usa normalizeStatus para padronizar antes de classificar. */
     const tipoNorm   = String(findCol(row,['Tipo','tipo'])||'').trim().toUpperCase()
                          .normalize('NFD').replace(/[\u0300-\u036f]/g,'');
     const statusNorm = normalizeStatus(findCol(row,['Status','status','estagio','estágio'])||'');
-    const dateStr = dateCache[ri];
 
-    // CORREÇÃO 2 — Filtro estrito: só /04/2026 (mês 3 no índice JS = Abril)
-    // Aceita ISO 2026-04-XX ou Brasil DD/04/2026 — descarta qualquer outro mês/ano
-    if(!dateStr) return;
-    const dsISO = /^\d{4}-\d{2}-\d{2}/.test(dateStr) ? dateStr : '';
-    if(!dsISO || dsISO.substring(0,7) !== ABRIL_YYYY_MM) return;
-
+    /* REGRA 4: weekIdx calculado usando getWeekIdxFromDate que aplica
+       data_venda >= inicio_semana && data_venda <= fim_semana
+       com os períodos vindos EXCLUSIVAMENTE da Aba Config (SEMANAS_BASE). */
     const weekIdx = getWeekIdxFromDate(dateStr);
 
-    /* REGRA DE FATURAMENTO CORRIGIDA:
-       ✔ Faturamento BRUTO = TODOS os status (APROVADO + EM APROVAÇÃO + CANCELADO + REJEITADO)
-          → Deve totalizar R$ 8.924,87 para Abril
-       ✔ Aprovados = somente Status=APROVADO (ou Tipo=VENDA + Status=APROVADO)
-       ✔ Perdas = CANCELADO + REJEITADO (contagem, não valor)
-       ✔ EM APROVAÇÃO = contagem separada (emAprov) */
-    const isVenda     = tipoNorm === 'VENDA'  && statusNorm === 'APROVADO';
+    // Classificação de status
     const isAprovado  = tipoNorm===''?(statusNorm==='APROVADO'):(tipoNorm==='VENDA'&&statusNorm==='APROVADO');
-    const isCancelado = statusNorm === 'CANCELADO';
-    const isRejeitado = statusNorm === 'REJEITADO';
-    const isPerda     = tipoNorm === 'PERDA'  || isCancelado || isRejeitado;
-    const isEmAprov   = statusNorm === 'EM APROVACAO';
+    const isCancelado = statusNorm==='CANCELADO';
+    const isRejeitado = statusNorm==='REJEITADO';
+    const isPerda     = tipoNorm==='PERDA'||isCancelado||isRejeitado;
+    const isEmAprov   = statusNorm==='EM APROVACAO';
 
-    const estagioLabel = isCancelado ? 'CANCELADO'
-                       : isRejeitado ? 'REJEITADO'
-                       : isPerda     ? 'PERDA'
-                       : isEmAprov   ? 'EM APROVAÇÃO'
-                       : isAprovado  ? 'APROVADO'
-                       : statusNorm;
+    const estagioLabel = isCancelado?'CANCELADO':isRejeitado?'REJEITADO':isPerda?'PERDA':isEmAprov?'EM APROVAÇÃO':isAprovado?'APROVADO':statusNorm;
 
     RAW_ROWS.push({nome:nameRaw, valor:val, estagio:estagioLabel, data:dateStr, semana:weekIdx});
 
-    // Filtro de mês já aplicado acima — todos os registros aqui são Abril/2026
-
-    /* Match de nome — normStr é UPPERCASE sem acentos.
-       Match exato normalizado tem prioridade; fallback ≥2 palavras significativas (>3 chars)
-       para cobrir abreviações sem criar falso-positivos entre nomes parecidos. */
+    /* REGRA 3: match de nome usando normStr (UPPERCASE + sem acentos).
+       "Claudia" e "CLAUDIA" e "Cláudia" → todos encontram o mesmo registro. */
     const nameN = normStr(nameRaw);
     const found = DATA.find(d=>{
       const dn = normStr(d.name);
       if(dn===nameN) return true;
-      // Fallback: ≥2 palavras significativas em comum (mais conservador que ≥3)
-      const nw = nameN.split(' ').filter(w=>w.length>3);
-      const dw = dn.split(' ').filter(w=>w.length>3);
-      const shared = nw.filter(w=>dw.includes(w));
-      // Exige que as palavras compartilhadas cubram ≥50% de ambos os nomes
-      return shared.length>=2 && shared.length>=nw.length*.5 && shared.length>=dw.length*.5;
+      const nw=nameN.split(' ').filter(w=>w.length>3);
+      const dw=dn.split(' ').filter(w=>w.length>3);
+      const shared=nw.filter(w=>dw.includes(w));
+      return shared.length>=2&&shared.length>=nw.length*.5&&shared.length>=dw.length*.5;
     });
     if(!found){
       skipped++;
-      if(skipped<=10) console.warn('[v12] Sem match para nome:', nameRaw, '→ normStr:', nameN);
+      if(skipped<=10) console.warn('[v15] Sem match para nome:', nameRaw, '→ normStr:', nameN);
       return;
     }
 
-    const sKey = ['s1','s2','s3','s4','s5','s6'][weekIdx]||'s1';
-    if(!found.qtd||found.qtd.length<6) found.qtd=[0,0,0,0,0,0];
-    if(!found.losses) found.losses={cancel:[0,0,0,0,0,0],reject:[0,0,0,0,0,0]};
+    const sKey=['s1','s2','s3','s4','s5','s6'][weekIdx]||'s1';
+    if(!found.qtd||found.qtd.length<6)   found.qtd=[0,0,0,0,0,0];
+    if(!found.losses)                     found.losses={cancel:[0,0,0,0,0,0],reject:[0,0,0,0,0,0]};
     if(!found.emAprov||found.emAprov.length<6) found.emAprov=[0,0,0,0,0,0];
 
-    /* FATURAMENTO BRUTO: todos os registros somam ao total por semana.
-       O campo s1..s6 agora representa o BRUTO (todos os status). */
+    // Acumula valor bruto na semana correta
     found[sKey]=(found[sKey]||0)+val;
     found.qtd[weekIdx]=(found.qtd[weekIdx]||0)+1;
 
     if(isCancelado){
       found.losses.cancel[weekIdx]=(found.losses.cancel[weekIdx]||0)+1;
-    } else if(isRejeitado || (isPerda && !isCancelado)){
+    } else if(isRejeitado||(isPerda&&!isCancelado)){
       found.losses.reject[weekIdx]=(found.losses.reject[weekIdx]||0)+1;
     } else if(isEmAprov){
-      /* EM APROVAÇÃO: contabiliza separadamente (para exibição de pendentes) */
       found.emAprov[weekIdx]=(found.emAprov[weekIdx]||0)+1;
     }
     imported++;
   });
 
-  console.log(`[v12 Structured] ${source}: ${imported} registros (bruto) | ${dupes} dupes evitados | ${skipped} sem match | mês: ${detectedMonth||'(nenhum)'}`);
-  // Debug detalhado — totais brutos por colaboradora
-  const totaisDebug = DATA.filter(r=>(r.s1||0)+(r.s2||0)+(r.s3||0)+(r.s4||0)>0)
-    .map(r=>`${r.name.split(' ')[0]}: R$${((r.s1||0)+(r.s2||0)+(r.s3||0)+(r.s4||0)).toFixed(2)} (${(r.qtd||[]).reduce((a,b)=>a+b,0)} registros)`);
-  const totalBrutoDebug=RAW_ROWS.reduce((s,r)=>s+(r.valor||0),0);
-  const totalAprovDebug=RAW_ROWS.filter(r=>r.estagio==='APROVADO').reduce((s,r)=>s+(r.valor||0),0);
-  console.log(`[v12] Total BRUTO: R$${totalBrutoDebug.toFixed(2)} | Total APROVADO: R$${totalAprovDebug.toFixed(2)} | Esperado bruto Abril: R$8924,87`);
-  if(totaisDebug.length) console.log('[v12] Totais brutos por colaboradora:', totaisDebug.join(' | '));
-  if(imported===0 && RAW_ROWS.length===0)
-    throw new Error('Nenhum registro válido encontrado. Verifique as colunas: Nome Colaborador, Valor Venda, Tipo, Status, Data Venda.');
+  /* ══════════════════════════════════════════════════════════════════════
+     REGRA 5: LISTA DE CONFERÊNCIA NO CONSOLE
+     Formato: "Nome | Valor Total" — bate direto com o Excel.
+     Ordenada por valor decrescente para facilitar a conferência visual.
+  ══════════════════════════════════════════════════════════════════════ */
+  const totalBruto  = RAW_ROWS.reduce((s,r)=>s+(r.valor||0),0);
+  const totalAprov  = RAW_ROWS.filter(r=>r.estagio==='APROVADO').reduce((s,r)=>s+(r.valor||0),0);
+
+  // Agrupa por nome (normStr) para conferência — REGRA 3 garante sem duplicatas
+  const conferencia = {};
+  RAW_ROWS.forEach(r=>{
+    const k=normStr(r.nome);
+    if(!conferencia[k]) conferencia[k]={nome:r.nome,total:0,qtd:0};
+    conferencia[k].total+=r.valor;
+    conferencia[k].qtd++;
+  });
+  const listaConf = Object.values(conferencia).sort((a,b)=>b.total-a.total);
+
+  console.log('');
+  console.log('╔══════════════════════════════════════════════════════════╗');
+  console.log('║  LISTA DE CONFERÊNCIA v15 · Abril/2026 · Google Sheets  ║');
+  console.log('║  (conferir com Excel — Nome | Valor Total | Qtd Reg.)   ║');
+  console.log('╠══════════════════════════════════════════════════════════╣');
+  listaConf.forEach((r,i)=>{
+    const pad=(s,n)=>(s+'').padEnd(n);
+    console.log(`  ${pad((i+1)+'.',3)} ${pad(r.nome,42)} R$ ${r.total.toFixed(2).padStart(9)}  (${r.qtd} reg.)`);
+  });
+  console.log('╠══════════════════════════════════════════════════════════╣');
+  console.log(`  TOTAL BRUTO  : R$ ${totalBruto.toFixed(2)}`);
+  console.log(`  TOTAL APROVADO: R$ ${totalAprov.toFixed(2)}`);
+  console.log(`  Registros Abril/2026: ${RAW_ROWS.length} de ${rows.length} totais`);
+  console.log(`  Importados: ${imported} | Sem match: ${skipped} | Dupes evitados: ${dupes}`);
+  console.log('╚══════════════════════════════════════════════════════════╝');
+  console.log('');
+
+  console.log(`[v15 Structured] ${source}: ${imported} registros Abril/2026 | ${dupes} dupes | ${skipped} sem match`);
+
+  if(imported===0&&RAW_ROWS.length===0)
+    throw new Error('Nenhum registro de Abril/2026 encontrado. Verifique as colunas: Nome Colaborador, Valor Venda, Tipo, Status, Data Venda.');
 }
 
 /* ── Main Google Sheets sync ── */
@@ -2890,22 +2907,29 @@ function exportBackupForCloud(){
 
 /* ──────────── INIT ──────────── */
 window.addEventListener('load',()=>{
+  // REGRA 1: localStorage.clear() já executado na linha 1 deste script
   loadSettings();
   runSplash(()=>{
     renderAll();
     if(RAW_ROWS.length>0){
       setGsStatus(`✅ ${RAW_ROWS.length} registros pré-carregados · Abril/26 · Sincronizando Google Sheets...`,'ok');
     }
-    toast('✅ BI Comercial v14 · Abril/26 · Cache limpo · Dados frescos');
-    // Log de validação
+    toast('✅ BI Comercial v15 · Abril/26 · 6 Regras Ativas · Dados limpos');
+    // REGRA 5: Log de conferência dos dados pré-carregados
     const _brutoCheck=RAW_ROWS.reduce((s,r)=>s+(r.valor||0),0);
     const _aprovCheck=RAW_ROWS.filter(r=>r.estagio==='APROVADO').reduce((s,r)=>s+(r.valor||0),0);
-    console.log(`[v14] Faturamento BRUTO: R$${_brutoCheck.toFixed(2)} | Aprovados: R$${_aprovCheck.toFixed(2)} | Registros: ${RAW_ROWS.length}`);
-    console.log(`[v14] localStorage.clear() executado · STRICT_MONTH=2026-04 · URL oficial ativa`);
+    console.log(`[v15] ✅ INIT · Faturamento BRUTO: R$${_brutoCheck.toFixed(2)} | Aprovados: R$${_aprovCheck.toFixed(2)} | Registros: ${RAW_ROWS.length}`);
+    console.log(`[v15] 6 REGRAS ATIVAS:`);
+    console.log(`  REGRA 1: localStorage.clear() executado na 1ª linha`);
+    console.log(`  REGRA 2: Pré-filtro ESTRITO Abril/2026 em processStructuredRows e processRows`);
+    console.log(`  REGRA 3: Nomes normalizados com UPPERCASE + trim() em todo o pipeline`);
+    console.log(`  REGRA 4: Semanas manuais via Aba Config (data >= inicio && data <= fim)`);
+    console.log(`  REGRA 5: Lista de conferência "Nome | Valor Total" no console`);
+    console.log(`  REGRA 6: URL oficial gid=86460305 ativa`);
     // Preenche inputs de URL com o link oficial
     const gsI = document.getElementById('gsUrlInput'); if(gsI) gsI.value = DEFAULT_CFG.remoteUrl;
     const cfgI = document.getElementById('cfgRemoteUrl'); if(cfgI) cfgI.value = DEFAULT_CFG.remoteUrl;
-    // Sincroniza Google Sheets automaticamente ao carregar
+    // Sincroniza Google Sheets automaticamente ao carregar (REGRA 6)
     setTimeout(()=>syncGoogleSheets(false), 800);
     startGsAutoRefresh(5);
   });
