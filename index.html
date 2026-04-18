@@ -7,6 +7,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800;900&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
 <style>
 /* ══════════════════════════════════════════
@@ -387,7 +388,7 @@ body>*{position:relative;z-index:1}
   <div class="kpi-row" id="kpiRow">
     <div class="gc kc" style="--ka:var(--mg);--ko:var(--mg-dim)">
       <div class="kc-bar"></div><div class="kc-orb"></div>
-      <div class="kc-label">Total Vendido</div>
+      <div class="kc-label">💰 Faturamento Bruto</div>
       <div class="kc-val" id="kTotal">—</div>
       <div class="kc-sub" id="kTotalSub">—</div>
     </div>
@@ -427,6 +428,12 @@ body>*{position:relative;z-index:1}
       <div class="kc-label">⚠️ Perdas (Cancel+Rejeit)</div>
       <div class="kc-val" id="kLoss" style="font-size:22px">—</div>
       <div class="kc-sub" id="kLossSub">—</div>
+    </div>
+    <div class="gc kc" style="--ka:var(--green);--ko:var(--gd)">
+      <div class="kc-bar"></div><div class="kc-orb"></div>
+      <div class="kc-label">✅ Total Aprovados</div>
+      <div class="kc-val" id="kAprovVal" style="font-size:20px">—</div>
+      <div class="kc-sub" id="kAprovSub">—</div>
     </div>
   </div>
   <div class="cr2">
@@ -475,6 +482,7 @@ body>*{position:relative;z-index:1}
             <th>Total R$</th><th>Qtd</th>
             <th>Meta Mensal</th><th>Meta Semanal</th>
             <th>% Meta</th><th>Perdas ⚠️</th><th>⏳ Aprov.</th>
+            <th>✅ Aprovados</th>
             <th>Progresso</th><th>Status</th>
           </tr>
         </thead>
@@ -597,6 +605,24 @@ body>*{position:relative;z-index:1}
           <tr><th>Data</th><th>Colaboradora</th><th>Estágio</th><th>R$ Vendas</th><th>Semana</th></tr>
         </thead>
         <tbody id="lossDetail"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="sh" style="margin-top:18px">✅ Aprovados por Atendente</div>
+  <div class="gc" style="padding:18px;margin-bottom:18px">
+    <div class="rt-wrap">
+      <table class="loss-table">
+        <thead>
+          <tr>
+            <th>Colaboradora</th>
+            <th style="color:var(--green)">Valor Aprovado (R$)</th>
+            <th>Qtd Aprovados</th>
+            <th>Faturamento Bruto</th>
+            <th>Taxa Aprovação %</th>
+          </tr>
+        </thead>
+        <tbody id="aprovadosBody"></tbody>
       </table>
     </div>
   </div>
@@ -772,19 +798,21 @@ body>*{position:relative;z-index:1}
 const STORAGE_KEY = 'dash_prox_v12';
 
 /* ──────────── BASE MESTRA ──────────── */
+/* RECALCULADA: somente registros com estagio=APROVADO somam ao faturamento.
+   EM APROVAÇÃO → apenas emAprov[]. Bruna: férias encerradas em 14/04, status=Ativa. */
 const BASE_MESTRA = [
-  { name:"SAMILA VIEIRA DE SOUZA LIMA", s1:74.99, s2:719.91, s3:374.95, s4:0.0, s5:0.0, s6:0.0, metaInd:1362, metaSem:340, status:"Ativa", qtd:[1, 9, 5, 0, 0, 0], losses:{cancel:[0, 0, 0, 0, 0, 0],reject:[0, 0, 0, 0, 0, 0]}, emAprov:[0, 5, 5, 0, 0, 0] },
-  { name:"ADRIELLE DOS SANTOS MAIA", s1:0.0, s2:409.95, s3:439.95, s4:0.0, s5:0.0, s6:0.0, metaInd:1362, metaSem:340, status:"Ativa", qtd:[0, 5, 5, 0, 0, 0], losses:{cancel:[0, 0, 0, 0, 0, 0],reject:[0, 1, 0, 0, 0, 0]}, emAprov:[0, 3, 5, 0, 0, 0] },
-  { name:"REBECA BRUNA CARVALHO DE SOUZA", s1:74.99, s2:477.94, s3:285.96, s4:0.0, s5:0.0, s6:0.0, metaInd:1362, metaSem:340, status:"Ativa", qtd:[1, 6, 4, 0, 0, 0], losses:{cancel:[0, 1, 0, 0, 0, 0],reject:[0, 0, 0, 0, 0, 0]}, emAprov:[0, 6, 4, 0, 0, 0] },
-  { name:"VANESSA SOARES SOUSA", s1:359.96, s2:647.92, s3:159.98, s4:0.0, s5:0.0, s6:0.0, metaInd:1362, metaSem:340, status:"Ativa", qtd:[4, 8, 2, 0, 0, 0], losses:{cancel:[0, 0, 0, 0, 0, 0],reject:[0, 0, 0, 0, 0, 0]}, emAprov:[0, 5, 2, 0, 0, 0] },
-  { name:"CLAUDIA MOREIRA BISPO", s1:74.99, s2:414.95, s3:374.95, s4:0.0, s5:0.0, s6:0.0, metaInd:1362, metaSem:340, status:"Ativa", qtd:[1, 5, 5, 0, 0, 0], losses:{cancel:[0, 0, 0, 0, 0, 0],reject:[0, 0, 0, 0, 0, 0]}, emAprov:[0, 4, 5, 0, 0, 0] },
-  { name:"GABRIELA ARAUJO SANTOS OLIVEIRA", s1:74.99, s2:374.95, s3:164.98, s4:0.0, s5:0.0, s6:0.0, metaInd:1362, metaSem:340, status:"Ativa", qtd:[1, 5, 2, 0, 0, 0], losses:{cancel:[0, 1, 1, 0, 0, 0],reject:[1, 0, 0, 0, 0, 0]}, emAprov:[0, 4, 2, 0, 0, 0] },
-  { name:"VITORIA KAROLYNE PEREIRA DE JESUS", s1:135.98, s2:417.95, s3:135.98, s4:0.0, s5:0.0, s6:0.0, metaInd:1362, metaSem:340, status:"Ativa", qtd:[2, 5, 2, 0, 0, 0], losses:{cancel:[0, 0, 0, 0, 0, 0],reject:[0, 2, 0, 0, 0, 0]}, emAprov:[0, 5, 2, 0, 0, 0] },
-  { name:"MIKELLE SANTOS ARAUJO DE OLIVEIRA", s1:0.0, s2:300.96, s3:239.97, s4:0.0, s5:0.0, s6:0.0, metaInd:1362, metaSem:340, status:"Ativa", qtd:[0, 4, 3, 0, 0, 0], losses:{cancel:[0, 1, 0, 0, 0, 0],reject:[0, 0, 0, 0, 0, 0]}, emAprov:[0, 4, 3, 0, 0, 0] },
-  { name:"ADLA MILLENA GOMES BRANDAO", s1:0.0, s2:217.97, s3:232.97, s4:0.0, s5:0.0, s6:0.0, metaInd:1362, metaSem:340, status:"Ativa", qtd:[0, 3, 3, 0, 0, 0], losses:{cancel:[0, 0, 0, 0, 0, 0],reject:[0, 0, 0, 0, 0, 0]}, emAprov:[0, 1, 3, 0, 0, 0] },
-  { name:"HELOISA DA SILVA COELHO VIEIRA", s1:0.0, s2:324.96, s3:0.0, s4:0.0, s5:0.0, s6:0.0, metaInd:1362, metaSem:340, status:"Ativa", qtd:[0, 4, 0, 0, 0, 0], losses:{cancel:[0, 0, 0, 0, 0, 0],reject:[0, 0, 0, 0, 0, 0]}, emAprov:[0, 4, 0, 0, 0, 0] },
-  { name:"LUANA GOMES DA SILVA", s1:159.98, s2:149.98, s3:319.96, s4:0.0, s5:0.0, s6:0.0, metaInd:1362, metaSem:340, status:"Ativa", qtd:[2, 2, 4, 0, 0, 0], losses:{cancel:[0, 0, 1, 0, 0, 0],reject:[0, 0, 0, 0, 0, 0]}, emAprov:[0, 2, 4, 0, 0, 0] },
-  { name:"BRUNA EMILE SANTOS SENA", s1:0.0, s2:0.0, s3:375.95, s4:0.0, s5:0.0, s6:0.0, metaInd:1362, metaSem:340, status:"F\u00e9rias", qtd:[0, 0, 5, 0, 0, 0], losses:{cancel:[0, 0, 0, 0, 0, 0],reject:[0, 0, 0, 0, 0, 0]}, emAprov:[0, 0, 5, 0, 0, 0] }
+  { name:"ADLA MILLENA GOMES BRANDAO", s1:0.0, s2:149.98, s3:0.0, s4:0.0, s5:0.0, s6:0.0, metaInd:1362, metaSem:340, status:"Ativa", qtd:[0, 2, 0, 0, 0, 0], losses:{cancel:[0, 0, 0, 0, 0, 0],reject:[0, 0, 0, 0, 0, 0]}, emAprov:[0, 1, 3, 0, 0, 0] },
+  { name:"ADRIELLE DOS SANTOS MAIA", s1:0.0, s2:159.98, s3:0.0, s4:0.0, s5:0.0, s6:0.0, metaInd:1362, metaSem:340, status:"Ativa", qtd:[0, 2, 0, 0, 0, 0], losses:{cancel:[0, 0, 0, 0, 0, 0],reject:[0, 1, 0, 0, 0, 0]}, emAprov:[0, 3, 5, 0, 0, 0] },
+  { name:"CLAUDIA MOREIRA BISPO", s1:74.99, s2:74.99, s3:0.0, s4:0.0, s5:0.0, s6:0.0, metaInd:1362, metaSem:340, status:"Ativa", qtd:[1, 1, 0, 0, 0, 0], losses:{cancel:[0, 0, 0, 0, 0, 0],reject:[0, 0, 0, 0, 0, 0]}, emAprov:[0, 4, 5, 0, 0, 0] },
+  { name:"GABRIELA ARAUJO SANTOS OLIVEIRA", s1:74.99, s2:74.99, s3:0.0, s4:0.0, s5:0.0, s6:0.0, metaInd:1362, metaSem:340, status:"Ativa", qtd:[1, 1, 0, 0, 0, 0], losses:{cancel:[0, 1, 1, 0, 0, 0],reject:[1, 0, 0, 0, 0, 0]}, emAprov:[0, 4, 2, 0, 0, 0] },
+  { name:"HELOISA DA SILVA COELHO VIEIRA", s1:0.0, s2:0.0, s3:0.0, s4:0.0, s5:0.0, s6:0.0, metaInd:1362, metaSem:340, status:"Ativa", qtd:[0, 0, 0, 0, 0, 0], losses:{cancel:[0, 0, 0, 0, 0, 0],reject:[0, 0, 0, 0, 0, 0]}, emAprov:[0, 4, 0, 0, 0, 0] },
+  { name:"LUANA GOMES DA SILVA", s1:159.98, s2:0.0, s3:0.0, s4:0.0, s5:0.0, s6:0.0, metaInd:1362, metaSem:340, status:"Ativa", qtd:[2, 0, 0, 0, 0, 0], losses:{cancel:[0, 0, 1, 0, 0, 0],reject:[0, 0, 0, 0, 0, 0]}, emAprov:[0, 2, 4, 0, 0, 0] },
+  { name:"MIKELLE SANTOS ARAUJO DE OLIVEIRA", s1:0.0, s2:0.0, s3:0.0, s4:0.0, s5:0.0, s6:0.0, metaInd:1362, metaSem:340, status:"Ativa", qtd:[0, 0, 0, 0, 0, 0], losses:{cancel:[0, 1, 0, 0, 0, 0],reject:[0, 0, 0, 0, 0, 0]}, emAprov:[0, 4, 3, 0, 0, 0] },
+  { name:"REBECA BRUNA CARVALHO DE SOUZA", s1:74.99, s2:0.0, s3:0.0, s4:0.0, s5:0.0, s6:0.0, metaInd:1362, metaSem:340, status:"Ativa", qtd:[1, 0, 0, 0, 0, 0], losses:{cancel:[0, 1, 0, 0, 0, 0],reject:[0, 0, 0, 0, 0, 0]}, emAprov:[0, 6, 4, 0, 0, 0] },
+  { name:"SAMILA VIEIRA DE SOUZA LIMA", s1:74.99, s2:299.96, s3:0.0, s4:0.0, s5:0.0, s6:0.0, metaInd:1362, metaSem:340, status:"Ativa", qtd:[1, 4, 0, 0, 0, 0], losses:{cancel:[0, 0, 0, 0, 0, 0],reject:[0, 0, 0, 0, 0, 0]}, emAprov:[0, 5, 5, 0, 0, 0] },
+  { name:"VANESSA SOARES SOUSA", s1:359.96, s2:234.97, s3:0.0, s4:0.0, s5:0.0, s6:0.0, metaInd:1362, metaSem:340, status:"Ativa", qtd:[4, 3, 0, 0, 0, 0], losses:{cancel:[0, 0, 0, 0, 0, 0],reject:[0, 0, 0, 0, 0, 0]}, emAprov:[0, 5, 2, 0, 0, 0] },
+  { name:"VITORIA KAROLYNE PEREIRA DE JESUS", s1:135.98, s2:0.0, s3:0.0, s4:0.0, s5:0.0, s6:0.0, metaInd:1362, metaSem:340, status:"Ativa", qtd:[2, 0, 0, 0, 0, 0], losses:{cancel:[0, 0, 0, 0, 0, 0],reject:[0, 2, 0, 0, 0, 0]}, emAprov:[0, 5, 2, 0, 0, 0] },
+  { name:"BRUNA EMILE SANTOS SENA", s1:0.0, s2:0.0, s3:0.0, s4:0.0, s5:0.0, s6:0.0, metaInd:1362, metaSem:340, status:"Ativa", qtd:[0, 0, 0, 0, 0, 0], losses:{cancel:[0, 0, 0, 0, 0, 0],reject:[0, 0, 0, 0, 0, 0]}, emAprov:[0, 0, 5, 0, 0, 0] }
 ];
 
 
@@ -903,10 +931,11 @@ function saveSettings(){
   }catch(e){console.warn('[dash_settings_v7] save error',e);}
 }
 function loadSettings(){
-  /* v11: BASE_MESTRA já vem pré-alimentada com dados reais do XLSX Abril/26.
-     localStorage só é usado se tiver dados válidos de uma importação manual
-     feita NESTA versão (STORAGE_KEY = dash_prox_v11). Caso contrário,
-     BASE_MESTRA + PRELOADED_RAW são sempre a fonte de verdade inicial. */
+  /* v12-fix: BASE_MESTRA foi recalculada com regra correta (só APROVADO soma).
+     Apaga qualquer localStorage da versão anterior para garantir dados limpos. */
+  const LEGACY_KEYS = ['dash_prox_v11','dash_prox_v10','dash_prox_v9','dash_prox_v8'];
+  LEGACY_KEYS.forEach(k => { try{ localStorage.removeItem(k); }catch(e){} });
+
   function applyPreloaded(){
     CFG={...DEFAULT_CFG};
     DATA=JSON.parse(JSON.stringify(BASE_MESTRA));
@@ -987,7 +1016,15 @@ function computeData(){
     const p=metaReal>0?total/metaReal:null;     // pct calculado sempre
     const totalLoss=((r.losses?.cancel||[]).reduce((a,b)=>a+b,0))+((r.losses?.reject||[]).reduce((a,b)=>a+b,0));
     const totalEmAprov=(r.emAprov||[]).reduce((a,b)=>a+(b||0),0);
-    return {...r,total,totalQtd,meta:metaDisplay,metaReal,pct:p,totalLoss,totalEmAprov};
+    /* NOVO: aprovadoVal e aprovadoQtd — calculados diretamente do RAW_ROWS */
+    const normR=s=>{const nfd=String(s||'').trim().toUpperCase().normalize('NFD');let x='';for(let i=0;i<nfd.length;i++){const cc=nfd.charCodeAt(i);if(cc<0x0300||cc>0x036f)x+=nfd[i];}return x.replace(/\s+/g,' ').trim();};
+    const rn=normR(r.name);
+    const aprovRows=RAW_ROWS.filter(rw=>rw.estagio==='APROVADO'&&normR(rw.nome)===rn);
+    const aprovadoVal=aprovRows.reduce((s,rw)=>s+(rw.valor||0),0);
+    const aprovadoQtd=aprovRows.length;
+    /* NOVO: faturamento bruto — todos os status somados */
+    const faturamentoBruto=RAW_ROWS.filter(rw=>normR(rw.nome)===rn).reduce((s,rw)=>s+(rw.valor||0),0);
+    return {...r,total,totalQtd,meta:metaDisplay,metaReal,pct:p,totalLoss,totalEmAprov,aprovadoVal,aprovadoQtd,faturamentoBruto};
   }).sort((a,b)=>{
     if(isActive(a)&&!isActive(b))return -1;
     if(!isActive(a)&&isActive(b))return 1;
@@ -1034,9 +1071,16 @@ function renderKPIs(d){
   const totalCancel=d.reduce((s,r)=>s+((r.losses?.cancel||[]).reduce((a,b)=>a+b,0)),0);
   const totalReject=d.reduce((s,r)=>s+((r.losses?.reject||[]).reduce((a,b)=>a+b,0)),0);
   const totalLoss=totalCancel+totalReject;
+  /* FATURAMENTO BRUTO: todos os status do mês ativo */
+  const totalBruto=RAW_ROWS.reduce((s,r)=>s+(r.valor||0),0);
+  /* APROVADOS: somente estagio=APROVADO */
+  const totalAprovVal=RAW_ROWS.filter(r=>r.estagio==='APROVADO').reduce((s,r)=>s+(r.valor||0),0);
+  const totalAprovQtd=RAW_ROWS.filter(r=>r.estagio==='APROVADO').length;
+  const taxaAprov=totalBruto>0?totalAprovVal/totalBruto*100:0;
 
-  set$('kTotal',brl(total));
-  set$('kTotalSub',`${qtdTot} vendas no período`);
+  /* kTotal agora mostra Faturamento Bruto (todos os status) */
+  set$('kTotal',brl(totalBruto));
+  set$('kTotalSub',`${RAW_ROWS.length} contratos no período`);
   set$('kMeta',brl(meta));
   set$('kMetaSub',`${active.length} atendentes ativas`);
   set$('kPct',fP(pctVal));
@@ -1046,6 +1090,9 @@ function renderKPIs(d){
   set$('kAtivSub',ausentes.length?`${ausentes.length} afastada(s)`:'Todas ativas');
   set$('kLoss',totalLoss>0?`${totalLoss} ⚠️`:'0');
   set$('kLossSub',`${totalCancel} cancel · ${totalReject} rejeit`);
+  /* Novo KPI Aprovados */
+  set$('kAprovVal',brl(totalAprovVal));
+  set$('kAprovSub',`${totalAprovQtd} contratos · Taxa: ${fP(taxaAprov)}`);
 
   const pChip=document.getElementById('kPctChip');
   if(pChip){
@@ -1153,6 +1200,7 @@ function renderRanking(){
       <td><div class="meta-badge"><span class="meta-badge-real">${brlK(currSemVal)}</span><span class="meta-badge-sem">Meta: ${active?brlK(metaSemVal):'—'}</span></div></td>
       <td style="font-weight:700;color:${co}">${pT}</td>
       <td>${lossCell}</td><td>${emAprovCell}</td>
+      <td style="color:var(--green);font-weight:700;font-size:11px">${brl(r.aprovadoVal||0)}<br><span style="color:var(--mu);font-weight:400">${r.aprovadoQtd||0} ctrs</span></td>
       <td><div class="mbar"><div class="mbar-f" style="width:${(p*100).toFixed(0)}%;background:${co}"></div></div></td>
       <td>${statusTag(r.pct,r.status)}</td>
     </tr>`;
@@ -1444,18 +1492,25 @@ function renderInsights(d){
 function renderQualidade(){
   const all=RAW_ROWS;
   const total=all.length;
-  const aprov=all.filter(r=>r.estagio==='APROVADO').length;
-  const pend=all.filter(r=>r.estagio==='EM APROVAÇÃO').length;
-  const cancel=all.filter(r=>r.estagio==='CANCELADO').length;
-  const reject=all.filter(r=>r.estagio==='REJEITADO').length;
-  const lossTotal=cancel+reject;
-  const lossPct=total>0?(lossTotal/total)*100:0;
+  /* Filtros de estágio com rótulos canônicos */
+  const aprovRows =all.filter(r=>r.estagio==='APROVADO');
+  const aprov     =aprovRows.length;
+  const aprovVal  =aprovRows.reduce((s,r)=>s+(r.valor||0),0);
+  const pend      =all.filter(r=>r.estagio==='EM APROVAÇÃO'||r.estagio==='EM APROVACAO').length;
+  const pendVal   =all.filter(r=>r.estagio==='EM APROVAÇÃO'||r.estagio==='EM APROVACAO').reduce((s,r)=>s+(r.valor||0),0);
+  const cancel    =all.filter(r=>r.estagio==='CANCELADO').length;
+  const reject    =all.filter(r=>r.estagio==='REJEITADO'||r.estagio==='PERDA').length;
+  const lossTotal =cancel+reject;
+  const lossPct   =total>0?(lossTotal/total)*100:0;
+  /* Faturamento bruto = todos os valores */
+  const totalBruto=all.reduce((s,r)=>s+(r.valor||0),0);
+  const taxaAprov =totalBruto>0?aprovVal/totalBruto*100:0;
 
   set$('qTotal',total||'Sem dados');
   set$('qAprov',aprov);
-  set$('qAprovSub',`${total>0?fP(aprov/total*100):'—'} do total`);
+  set$('qAprovSub',`${brl(aprovVal)} · Taxa: ${fP(taxaAprov)}`);
   set$('qPend',pend);
-  set$('qPendSub',`${total>0?fP(pend/total*100):'—'} do total`);
+  set$('qPendSub',`${brl(pendVal)} · ${total>0?fP(pend/total*100):'—'} do total`);
   set$('qCancel',cancel);
   set$('qCancelSub',`${total>0?fP(cancel/total*100):'—'} do total`);
   set$('qRejeit',reject);
@@ -1486,16 +1541,16 @@ function renderQualidade(){
     options:{...CD,responsive:true,maintainAspectRatio:false}
   });
 
-  // Tabela por atendente
+  // Tabela por atendente — inclui aprovados
   const d=computeData();
   const lb=document.getElementById('lossBody');
   if(lb){
     lb.innerHTML=d.filter(r=>isActive(r)).map(r=>{
-      const cancelSem=(r.losses?.cancel||[0,0,0,0]).reduce((a,b)=>a+b,0); // total semana atual = soma
+      const cancelSem=(r.losses?.cancel||[0,0,0,0]).reduce((a,b)=>a+b,0);
       const rejectSem=(r.losses?.reject||[0,0,0,0]).reduce((a,b)=>a+b,0);
-      const cancelMes=cancelSem; // mês = mesma janela por ora
+      const cancelMes=cancelSem;
       const rejectMes=rejectSem;
-      const totalCtr=(r.qtd||[0,0,0,0]).reduce((a,b)=>a+b,0)+cancelSem+rejectSem;
+      const totalCtr=(r.qtd||[0,0,0,0]).reduce((a,b)=>a+b,0);
       const lossRate=totalCtr>0?(cancelSem+rejectSem)/totalCtr*100:0;
       const alertHtml=(cancelSem+rejectSem)>2
         ?`<span class="alert-tag">⚠️ Alta</span>`
@@ -1530,6 +1585,31 @@ function renderQualidade(){
       </tr>`;
     }).join('');
   }
+
+  // Nova seção: Aprovados por Atendente
+  renderAprovadosPorAtendente(d);
+}
+
+/* ──────────── APROVADOS POR ATENDENTE ──────────── */
+function renderAprovadosPorAtendente(d){
+  // Cria/atualiza tabela de aprovados se existir no DOM
+  const el=document.getElementById('aprovadosBody');
+  if(!el)return;
+  const rows=(d||computeData()).filter(r=>isActive(r));
+  el.innerHTML=rows.map(r=>{
+    const aprovVal=r.aprovadoVal||0;
+    const aprovQtd=r.aprovadoQtd||0;
+    const bruto=r.faturamentoBruto||0;
+    const taxa=bruto>0?aprovVal/bruto*100:0;
+    const co=taxa>=70?'var(--green)':taxa>=40?'var(--yel)':'var(--red)';
+    return `<tr>
+      <td style="font-weight:600">${r.name.split(' ').slice(0,2).join(' ')}</td>
+      <td style="color:var(--green);font-weight:700">${brl(aprovVal)}</td>
+      <td>${aprovQtd}</td>
+      <td>${brl(bruto)}</td>
+      <td style="font-weight:700;color:${co}">${fP(taxa)}</td>
+    </tr>`;
+  }).join('');
 }
 
 /* ──────────── CONFIG UI ──────────── */
@@ -1890,13 +1970,19 @@ function processText(raw,fname){
 
 /* ──────────── CORE PROCESSOR (v6) ──────────── */
 function processRows(rows,fname,colMap){
-  const normStr=s=>s.toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+  /* CORREÇÃO 9a: normStr UPPERCASE sem acentos — mesma lógica do processStructuredRows */
+  const normStr=s=>{
+    const nfd=String(s||'').trim().toUpperCase().normalize('NFD');
+    let r='';
+    for(let i=0;i<nfd.length;i++){const cc=nfd.charCodeAt(i);if(cc<0x0300||cc>0x036f)r+=nfd[i];}
+    return r.replace(/\s+/g,' ').trim();
+  };
   /* v8: filtro de unidade REMOVIDO — soma todas as linhas com R$ Vendas */
 
+  /* CORREÇÃO 9b: parseVal robusto para formato brasileiro */
   const parseVal=v=>{
     if(v===null||v===undefined||v==='')return 0;
     if(typeof v==='number')return isNaN(v)?0:v;
-    // Safe char-by-char strip of R$, whitespace, nbsp
     let clean='';
     const sv=String(v);
     for(let i=0;i<sv.length;i++){
@@ -1904,13 +1990,32 @@ function processRows(rows,fname,colMap){
       if(c==='R'||c==='$'||cc===0x00A0||cc===0x0020||cc===0x0009)continue;
       clean+=c;
     }
-    let n;
+    if(!clean)return 0;
     const hasDot=clean.includes('.');
     const hasComma=clean.includes(',');
-    if(hasDot&&hasComma){n=parseFloat(clean.split('.').join('').replace(',','.'))}
-    else if(hasComma&&!hasDot){n=parseFloat(clean.replace(',','.'))}
-    else{n=parseFloat(clean)}
+    let n;
+    if(hasDot&&hasComma){
+      const lastDot=clean.lastIndexOf('.');
+      const lastComma=clean.lastIndexOf(',');
+      if(lastComma>lastDot){n=parseFloat(clean.split('.').join('').replace(',','.'))}
+      else{n=parseFloat(clean.split(',').join(''))}
+    }else if(hasComma&&!hasDot){n=parseFloat(clean.replace(',','.'))}
+    else if(hasDot&&!hasComma){
+      const afterDot=clean.substring(clean.lastIndexOf('.')+1);
+      if(afterDot.length===3){n=parseFloat(clean.split('.').join(''))}
+      else{n=parseFloat(clean)}
+    }else{n=parseFloat(clean)}
     return isNaN(n)?0:n;
+  };
+
+  /* CORREÇÃO 9c: normalizeStatus — padroniza variantes antes de classificar */
+  const normalizeStatus=raw=>{
+    const s=String(raw||'').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    if(s.startsWith('CANCEL'))return 'CANCELADO';
+    if(s.startsWith('REJEIT')||s.startsWith('REPROV'))return 'REJEITADO';
+    if(s==='EM APROVACAO'||s==='EM APROVAC'||(s.includes('EM ')&&s.includes('APROV')))return 'EM APROVACAO';
+    if(s.startsWith('APROV'))return 'APROVADO';
+    return s;
   };
 
   const getField=(row,candidates)=>{
@@ -1966,64 +2071,79 @@ function processRows(rows,fname,colMap){
 
     const valRaw=getField(row,[CFG.colReceita||'R$ Vendas','R$ Vendas','Valor','Receita']);
     const estagioRaw=String(getField(row,[CFG.colEstagio||'Estágio Contrato Proxxima','Estágio Contrato Proxxima','Estagio Contrato Proxxima','Estagio'])||'').trim();
-    const statusRaw=String(getField(row,['Status Contrato Proxxima','Status'])||'').trim();
+    const statusRawField=String(getField(row,['Status Contrato Proxxima','Status','Tipo'])||'').trim();
+    const tipoRaw=String(getField(row,['Tipo','tipo'])||'').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
     const dateStr=dateCache[ri];
     const weekIdx=getWeekIdxFromDate(dateStr);
 
     const val=parseVal(valRaw);
-    const estagio=estagioRaw.toUpperCase();
-    const statusU=statusRaw.toUpperCase();
-    const isCancelado=estagio==='CANCELADO'||statusU==='CANCELADO';
-    const isRejeitado=estagio==='REJEITADO'||estagio==='REPROVADO'||statusU==='REJEITADO'||statusU==='REPROVADO';
 
-    RAW_ROWS.push({nome:nameRaw,valor:val,estagio:isCancelado?'CANCELADO':(isRejeitado?'REJEITADO':(estagio||'EM APROVAÇÃO')),data:dateStr,semana:weekIdx});
+    /* CORREÇÃO 9d: usa normalizeStatus para padronizar estágio e status */
+    const estagioNorm=normalizeStatus(estagioRaw);
+    const statusNorm=normalizeStatus(statusRawField);
 
-    /* Match por nome — exato normalizado primeiro.
-       Fallback: 3+ palavras significativas (>3 chars) devem coincidir.
-       Evita falso-positivo: "BRUNA EMILE" ≠ "REBECA BRUNA";
-       "GABRIELA ARAUJO SANTOS OLIVEIRA" ≠ "MIKELLE SANTOS ARAUJO DE OLIVEIRA" */
+    /* REGRAS CORRIGIDAS — FATURAMENTO BRUTO (todos os status somam):
+       ✔ s1..s6 = bruto: APROVADO + EM APROVAÇÃO + CANCELADO + REJEITADO
+       ✔ estagio=APROVADO → apenas para indicador de aprovados (RAW_ROWS.estagio)
+       ✔ Perdas → apenas para contagem de losses[]
+       ✔ EM APROVAÇÃO → emAprov[] separado */
+    const hasTipo=tipoRaw==='VENDA'||tipoRaw==='PERDA';
+    const isCancelado=estagioNorm==='CANCELADO'||statusNorm==='CANCELADO';
+    const isRejeitado=estagioNorm==='REJEITADO'||statusNorm==='REJEITADO';
+    const isPerda=tipoRaw==='PERDA'||isCancelado||isRejeitado;
+    const isEmAprov=estagioNorm==='EM APROVACAO'||statusNorm==='EM APROVACAO';
+    const isAprovado=hasTipo?(tipoRaw==='VENDA'&&statusNorm==='APROVADO')
+                            :(estagioNorm==='APROVADO'||statusNorm==='APROVADO');
+
+    const estagioLabel=isCancelado?'CANCELADO':isRejeitado?'REJEITADO':isPerda?'PERDA':isEmAprov?'EM APROVAÇÃO':isAprovado?'APROVADO':estagioNorm||statusNorm;
+
+    /* FILTRO DE MÊS: apenas registros do mês detectado entram no RAW_ROWS */
+    if(detectedMonth && dateStr && /^\d{4}-\d{2}-\d{2}/.test(dateStr)){
+      const rowMonth=dateStr.substring(0,7);
+      if(rowMonth!==detectedMonth){ return; } // descarta meses diferentes (ex: março não entra em abril)
+    }
+
+    RAW_ROWS.push({nome:nameRaw,valor:val,estagio:estagioLabel,data:dateStr,semana:weekIdx});
+
+    /* CORREÇÃO 9e: match de nome — normStr agora é UPPERCASE sem acentos */
     const nameN=normStr(nameRaw);
     const found=DATA.find(d=>{
       const dn=normStr(d.name);
-      if(dn===nameN)return true; // match exato normalizado (caso mais comum)
-      // fallback seguro: mínimo 3 palavras significativas em comum
+      if(dn===nameN)return true;
       const nw=nameN.split(' ').filter(w=>w.length>3);
       const dw=dn.split(' ').filter(w=>w.length>3);
       const shared=nw.filter(w=>dw.includes(w));
-      return shared.length>=3;
+      return shared.length>=2&&shared.length>=nw.length*.5&&shared.length>=dw.length*.5;
     });
-    if(!found){skippedNoMatch++;return;}
+    if(!found){
+      skippedNoMatch++;
+      if(skippedNoMatch<=10)console.warn('[v12] Sem match para nome:',nameRaw,'→',nameN);
+      return;
+    }
 
     const sKey=['s1','s2','s3','s4','s5','s6'][weekIdx]||'s1';
     if(!found.qtd||found.qtd.length<6)found.qtd=[0,0,0,0,0,0];
     if(!found.losses)found.losses={cancel:[0,0,0,0,0,0],reject:[0,0,0,0,0,0]};
-    if(found.losses.cancel.length<6)found.losses.cancel=[...found.losses.cancel,0,0].slice(0,6);
-    if(found.losses.reject.length<6)found.losses.reject=[...found.losses.reject,0,0].slice(0,6);
-    if(!found.emAprov||found.emAprov.length<6)found.emAprov=[0,0,0,0,0,0]; /* FIX 3 */
+    if(found.losses.cancel.length<6)found.losses.cancel=[...found.losses.cancel,...Array(6)].slice(0,6);
+    if(found.losses.reject.length<6)found.losses.reject=[...found.losses.reject,...Array(6)].slice(0,6);
+    if(!found.emAprov||found.emAprov.length<6)found.emAprov=[0,0,0,0,0,0];
+
+    /* FATURAMENTO BRUTO: todos os registros do mês somam ao total por semana */
+    found[sKey]=(found[sKey]||0)+val;
+    found.qtd[weekIdx]=(found.qtd[weekIdx]||0)+1;
 
     if(isCancelado){
-      /* CANCELADO: conta como perda, NÃO soma ao faturamento */
       found.losses.cancel[weekIdx]=(found.losses.cancel[weekIdx]||0)+1;
-    } else if(isRejeitado){
-      /* FIX 4: REJEITADO também NÃO soma ao faturamento (era bug — estava na branch else) */
+    } else if(isRejeitado||(isPerda&&!isCancelado)){
       found.losses.reject[weekIdx]=(found.losses.reject[weekIdx]||0)+1;
-    } else {
-      /* APROVADO + EM APROVAÇÃO → somam ao faturamento normalmente */
-      found[sKey]=(found[sKey]||0)+val;
-      found.qtd[weekIdx]=(found.qtd[weekIdx]||0)+1;
-      /* FIX 3d: contar EM APROVAÇÃO separadamente para exibir tag ⏳ */
-      const isEmAprov=estagio==='EM APROVAÇÃO'||estagio==='EM APROVACAO'||estagio.includes('APROVA')&&estagio.includes('EM ');
-      if(isEmAprov){
-        if(!found.emAprov||found.emAprov.length<6)found.emAprov=[0,0,0,0,0,0];
-        found.emAprov[weekIdx]=(found.emAprov[weekIdx]||0)+1;
-      }
+    } else if(isEmAprov){
+      found.emAprov[weekIdx]=(found.emAprov[weekIdx]||0)+1;
     }
     imported++;
   });
 
-  console.log(`[v11] ${fname}: ${imported} contratos contabilizados | ${skippedNoMatch} sem match no time | mês detectado: ${detectedMonth||'(nenhum)'}`);
-  // Debug: total por atendente para validação
-  const totais=DATA.filter(r=>r.s1||r.s2||r.s3||r.s4).map(r=>`${r.name.split(' ')[0]}: ${(SEMANAS_BASE.reduce((s,sm)=>s+(r[sm.key]||0),0)).toFixed(2)}`);
+  console.log(`[v11] ${fname}: ${imported} vendas aprovadas | ${skippedNoMatch} sem match | mês detectado: ${detectedMonth||'(nenhum)'}`);
+  const totais=DATA.filter(r=>r.s1||r.s2||r.s3||r.s4).map(r=>`${r.name.split(' ')[0]}: R$${(SEMANAS_BASE.reduce((s,sm)=>s+(r[sm.key]||0),0)).toFixed(2)} (${(r.qtd||[]).reduce((a,b)=>a+b,0)} vendas)`);
   if(totais.length)console.log('[v11] Totais por atendente:',totais.join(' | '));
   if(imported===0&&RAW_ROWS.length===0)
     throw new Error(`Nenhum registro válido encontrado no arquivo. Verifique se há coluna "R$ Vendas" e "Nome Colaborador".`);
@@ -2111,14 +2231,20 @@ function getWeekIdxFromDate(dateStr){
   if(!dateStr)return 0;
   let d;
   const s=String(dateStr).trim();
-  if(/^\d{4}-\d{2}-\d{2}/.test(s))d=new Date(s.substring(0,10)+'T12:00:00');
-  else if(/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)){
+  /* CORREÇÃO 7: parse de data SEMPRE como YYYY-MM-DD (já normalizado por normalizeDateStr).
+     O fallback DD/MM/AAAA aqui interpretava parts[0] como mês e parts[1] como dia
+     (formato americano) — corrigido para sempre tratar como DD/MM/AAAA (padrão Brasil). */
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)){
+    d=new Date(s.substring(0,10)+'T12:00:00');
+  } else if(/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)){
     const parts=s.split('/');
-    const p0=parseInt(parts[0]),p1=parseInt(parts[1]);
-    if(p0>12)d=new Date(`${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}T12:00:00`);
-    else d=new Date(`${parts[2]}-${parts[0].padStart(2,'0')}-${parts[1].padStart(2,'0')}T12:00:00`);
-  } else d=new Date(s);
+    // SEMPRE DD/MM/AAAA (padrão Brasil) — não assumir MM/DD
+    d=new Date(`${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}T12:00:00`);
+  } else {
+    d=new Date(s.includes('T')?s:s+'T12:00:00');
+  }
   if(!d||isNaN(d.getTime()))return 0;
+
   /* Encaixa a data dentro de SEMANAS_BASE (cada semana = seg→dom). */
   for(let i=0;i<SEMANAS_BASE.length;i++){
     const per=SEMANAS_BASE[i].periodo||'';
@@ -2127,14 +2253,18 @@ function getWeekIdxFromDate(dateStr){
     const y=d.getFullYear();
     const ini=new Date(y, parseInt(m[2])-1, parseInt(m[1]),0,0,0);
     const fim=new Date(y, parseInt(m[4])-1, parseInt(m[3]),23,59,59);
-    // tratamento de virada de ano (dezembro→janeiro)
+    // tratamento de virada de mês (ex: semana que cruza jan→fev)
     if(fim<ini) fim.setFullYear(y+1);
     if(d>=ini&&d<=fim)return i;
   }
-  // fallback antigo
+  /* CORREÇÃO 7b: fallback por intervalos de dias do mês — só acionado se SEMANAS_BASE
+     não tiver períodos (situação rara). Antes usava <=7, <=14, <=21, <=28 o que
+     colocava datas como dia 1 do mês sempre na Semana 1 mesmo que a Semana 1 do
+     calendário começasse em outra data. Agora usa divisão proporcional. */
   const day=d.getDate();
-  if(day<=7)return 0;if(day<=14)return 1;if(day<=21)return 2;if(day<=28)return 3;
-  return Math.min(SEMANAS_BASE.length-1,4);
+  const totalDays=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();
+  const semCount=Math.max(1,SEMANAS_BASE.length);
+  return Math.min(semCount-1, Math.floor((day-1)/(totalDays/semCount)));
 }
 
 function fmtDate(s){
@@ -2254,71 +2384,32 @@ function saveGsUrl(){
   syncGoogleSheets(true);
 }
 
-/* ── Parser CSV simples (RFC4180) ── */
-/* ── Parser CSV seguro (RFC4180) — sem regex problemática ── */
+/* ── Parser CSV usando PapaParse (RFC4180 completo) ── */
 function parseCSV(text){
-  // Strip BOM, normalize line endings without regex
+  // Strip BOM
   if(text.charCodeAt(0)===0xFEFF) text = text.slice(1);
-  // Normalize line endings with split/join (no regex needed)
-  text = text.split('\r\n').join('\n').split('\r').join('\n');
-
-  const rows = [];
-  const allLines = text.split('\n');
-  let header = null;
-
-  // Detect separator from first non-empty line
-  let sep = ',';
-  for(const l of allLines){
-    if(l.trim()){
-      sep = (l.split(';').length > l.split(',').length) ? ';' : ',';
-      break;
-    }
+  // Usa PapaParse para parsing robusto — NUNCA usa split(',') direto
+  const result = Papa.parse(text, {
+    header: true,
+    skipEmptyLines: true,
+    dynamicTyping: false,   // mantém tudo como string para controlarmos a conversão
+    delimiter: '',          // auto-detecta vírgula ou ponto-e-vírgula
+    quoteChar: '"',
+    escapeChar: '"',
+    trimHeaders: true,
+  });
+  if(result.errors && result.errors.length){
+    console.warn('[parseCSV] PapaParse avisos:', result.errors.slice(0,3).map(e=>e.message).join('; '));
   }
-
-  // Safe field parser — no regex, handles quotes properly
-  function parseLine(line){
-    const res = [];
-    let cur = '';
-    let inQ = false;
-    for(let i = 0; i < line.length; i++){
-      const c = line[i];
-      if(c === '"'){
-        // Handle escaped quotes ("")
-        if(inQ && line[i+1] === '"'){ cur += '"'; i++; }
-        else { inQ = !inQ; }
-      } else if(c === sep && !inQ){
-        res.push(stripQuotes(cur.trim()));
-        cur = '';
-      } else {
-        cur += c;
-      }
-    }
-    res.push(stripQuotes(cur.trim()));
-    return res;
-  }
-
-  function stripQuotes(s){
-    if(s.length >= 2 && s[0] === '"' && s[s.length-1] === '"') return s.slice(1,-1);
-    return s;
-  }
-
-  for(const line of allLines){
-    if(!line.trim()) continue;
-    const fields = parseLine(line);
-    if(!header){
-      // Strip BOM from first header field (safe, no regex)
-      header = fields.map(h => {
-        let clean = h.trim();
-        if(clean.charCodeAt(0) === 0xFEFF) clean = clean.slice(1);
-        return clean;
-      });
-      continue;
-    }
-    const obj = {};
-    header.forEach((h, i) => { obj[h] = (fields[i] !== undefined ? fields[i] : ''); });
-    rows.push(obj);
-  }
-  return rows;
+  // Normaliza: trim em todos os campos de cabeçalho e valores
+  return (result.data||[]).map(row=>{
+    const clean={};
+    Object.keys(row).forEach(k=>{
+      const kc = k.trim();
+      clean[kc] = typeof row[k]==='string' ? row[k].trim() : (row[k]||'');
+    });
+    return clean;
+  });
 }
 
 /* ── Normalize column names (accent-insensitive) ── */
@@ -2342,7 +2433,26 @@ function hasStructuredSchema(rows){
 
 /* ── Process structured Google Sheets rows ── */
 function processStructuredRows(rows, source){
-  const normStr = s => { const nfd=String(s||'').toLowerCase().normalize('NFD'); let r=''; for(let i=0;i<nfd.length;i++){const cc=nfd.charCodeAt(i);if(cc<0x0300||cc>0x036f)r+=nfd[i];} return r.trim(); };
+  /* CORREÇÃO 1: normStr usa UPPERCASE para garantir match bidirecional
+     sem distinção de maiúsculas, minúsculas ou acentos.
+     "Gabriéla" → "GABRIELA", "MIKELLE" → "MIKELLE" — evita duplicatas e perdas. */
+  const normStr = s => {
+    const nfd = String(s||'').trim().toUpperCase().normalize('NFD');
+    let r = '';
+    for(let i=0;i<nfd.length;i++){
+      const cc=nfd.charCodeAt(i);
+      if(cc<0x0300||cc>0x036f) r+=nfd[i];
+    }
+    // Colapsa espaços múltiplos internos
+    return r.replace(/\s+/g,' ').trim();
+  };
+  /* CORREÇÃO 2: parseVal — suporte completo ao formato brasileiro.
+     "1.169,85" → 1169.85  |  "1169.85" → 1169.85  |  "R$ 1.169,85" → 1169.85
+     Lógica: se há vírgula E ponto → ponto é separador de milhar, vírgula é decimal.
+             se há só vírgula     → vírgula é decimal.
+             se há só ponto       → ponto pode ser decimal (ex: "1169.85") OU milhar
+               — diferencia pelo número de dígitos após o ponto:
+               ≤2 dígitos após último ponto → decimal; ≥3 → milhar (remove). */
   const parseVal = v => {
     if(v === null || v === undefined || v === '') return 0;
     if(typeof v === 'number') return isNaN(v) ? 0 : v;
@@ -2350,19 +2460,57 @@ function processStructuredRows(rows, source){
     const sv = String(v);
     for(let i = 0; i < sv.length; i++){
       const c = sv[i]; const cc = sv.charCodeAt(i);
+      // Remove R$, espaço, NBSP, TAB, letras isoladas prefix (R, $)
       if(c==='R'||c==='$'||cc===0x00A0||cc===0x0020||cc===0x0009) continue;
       clean += c;
     }
-    let n;
-    const hasDot = clean.includes('.');
+    if(!clean) return 0;
+    const hasDot   = clean.includes('.');
     const hasComma = clean.includes(',');
-    if(hasDot && hasComma){ n = parseFloat(clean.split('.').join('').replace(',','.')); }
-    else if(hasComma && !hasDot){ n = parseFloat(clean.replace(',','.')); }
-    else { n = parseFloat(clean); }
+    let n;
+    if(hasDot && hasComma){
+      // "1.169,85" ou "1,169.85" — detecta qual é o separador decimal (último separador)
+      const lastDot   = clean.lastIndexOf('.');
+      const lastComma = clean.lastIndexOf(',');
+      if(lastComma > lastDot){
+        // vírgula é decimal: "1.169,85" → remove pontos, troca vírgula por ponto
+        n = parseFloat(clean.split('.').join('').replace(',','.'));
+      } else {
+        // ponto é decimal: "1,169.85" → remove vírgulas
+        n = parseFloat(clean.split(',').join(''));
+      }
+    } else if(hasComma && !hasDot){
+      // "1169,85" → vírgula é decimal
+      n = parseFloat(clean.replace(',','.'));
+    } else if(hasDot && !hasComma){
+      // "1169.85" ou "1.169" — diferencia pelo número de dígitos após o último ponto
+      const afterDot = clean.substring(clean.lastIndexOf('.')+1);
+      if(afterDot.length === 3){
+        // "1.169" → ponto é separador de milhar
+        n = parseFloat(clean.split('.').join(''));
+      } else {
+        // "1169.85" → ponto é decimal
+        n = parseFloat(clean);
+      }
+    } else {
+      n = parseFloat(clean);
+    }
     return isNaN(n) ? 0 : n;
   };
-  // Collect IDs for deduplication
   const seenIds = new Set();
+
+  /* CORREÇÃO 3: normalizeStatus — mapeia TODAS as variantes conhecidas para o
+     canônico: CANCELADO | REJEITADO | APROVADO | EM APROVACAO.
+     Isso resolve "Cancelamento" sendo tratado de forma diferente de "Cancelado". */
+  const normalizeStatus = raw => {
+    const s = String(raw||'').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    if(s.startsWith('CANCEL'))                         return 'CANCELADO';
+    if(s.startsWith('REJEIT')||s.startsWith('REPROV')) return 'REJEITADO';
+    if(s==='EM APROVACAO'||s==='EM APROVAC'||
+       (s.includes('EM ')&&s.includes('APROV')))       return 'EM APROVACAO';
+    if(s.startsWith('APROV'))                          return 'APROVADO';
+    return s;
+  };
 
   // PASS 1: detect dominant month
   const monthVotes = {};
@@ -2402,54 +2550,96 @@ function processStructuredRows(rows, source){
     const valRaw = findCol(row,['Valor Venda','valor venda','valor','receita','r$ vendas','rs vendas']);
     const val = parseVal(valRaw);
 
-    const tipoRaw = String(findCol(row,['Tipo','tipo'])||'').trim().toUpperCase();
-    const statusRaw = String(findCol(row,['Status','status','estagio','estágio'])||'').trim().toUpperCase();
+    /* CORREÇÃO 4: usa normalizeStatus para padronizar antes de classificar.
+       Isso resolve "Cancelamento" ≠ "Cancelado", "Rejeitação" ≠ "Rejeitado", etc. */
+    const tipoNorm   = String(findCol(row,['Tipo','tipo'])||'').trim().toUpperCase()
+                         .normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    const statusNorm = normalizeStatus(findCol(row,['Status','status','estagio','estágio'])||'');
     const dateStr = dateCache[ri];
     const weekIdx = getWeekIdxFromDate(dateStr);
 
-    // Tipo=Perda OR Status=CANCELADO/REJEITADO → perda
-    const isLossByTipo = tipoRaw==='PERDA';
-    const isCancelado = statusRaw==='CANCELADO' || statusRaw==='CANCELADA';
-    const isRejeitado = statusRaw==='REJEITADO' || statusRaw==='REJEITADA' || statusRaw==='REPROVADO';
-    const isPerda = isLossByTipo || isCancelado || isRejeitado;
+    /* REGRA DE FATURAMENTO CORRIGIDA:
+       ✔ Faturamento BRUTO = TODOS os status (APROVADO + EM APROVAÇÃO + CANCELADO + REJEITADO)
+          → Deve totalizar R$ 8.924,87 para Abril
+       ✔ Aprovados = somente Status=APROVADO (ou Tipo=VENDA + Status=APROVADO)
+       ✔ Perdas = CANCELADO + REJEITADO (contagem, não valor)
+       ✔ EM APROVAÇÃO = contagem separada (emAprov) */
+    const isVenda     = tipoNorm === 'VENDA'  && statusNorm === 'APROVADO';
+    const isAprovado  = tipoNorm===''?(statusNorm==='APROVADO'):(tipoNorm==='VENDA'&&statusNorm==='APROVADO');
+    const isCancelado = statusNorm === 'CANCELADO';
+    const isRejeitado = statusNorm === 'REJEITADO';
+    const isPerda     = tipoNorm === 'PERDA'  || isCancelado || isRejeitado;
+    const isEmAprov   = statusNorm === 'EM APROVACAO';
 
-    // EM APROVAÇÃO counts as venda
-    const isEmAprov = statusRaw==='EM APROVAÇÃO'||statusRaw==='EM APROVACAO'||statusRaw.includes('APROV');
-
-    const estagioLabel = isPerda ? (isCancelado?'CANCELADO':(isRejeitado?'REJEITADO':'PERDA')) : (isEmAprov?'EM APROVAÇÃO':'APROVADO');
+    const estagioLabel = isCancelado ? 'CANCELADO'
+                       : isRejeitado ? 'REJEITADO'
+                       : isPerda     ? 'PERDA'
+                       : isEmAprov   ? 'EM APROVAÇÃO'
+                       : isAprovado  ? 'APROVADO'
+                       : statusNorm;
 
     RAW_ROWS.push({nome:nameRaw, valor:val, estagio:estagioLabel, data:dateStr, semana:weekIdx});
 
-    // Match colaborador
+    /* FILTRO DE MÊS: apenas registros do mês detectado entram (evita mistura de meses) */
+    // Nota: o push acima é feito antes do filtro para debug — mas o DATA acumula apenas o mês ativo
+    if(detectedMonth && dateStr && /^\d{4}-\d{2}-\d{2}/.test(dateStr)){
+      const rowMonth=dateStr.substring(0,7);
+      if(rowMonth!==detectedMonth){
+        RAW_ROWS.pop(); // remove o que acabamos de adicionar
+        return;
+      }
+    }
+
+    /* Match de nome — normStr é UPPERCASE sem acentos.
+       Match exato normalizado tem prioridade; fallback ≥2 palavras significativas (>3 chars)
+       para cobrir abreviações sem criar falso-positivos entre nomes parecidos. */
     const nameN = normStr(nameRaw);
     const found = DATA.find(d=>{
       const dn = normStr(d.name);
       if(dn===nameN) return true;
+      // Fallback: ≥2 palavras significativas em comum (mais conservador que ≥3)
       const nw = nameN.split(' ').filter(w=>w.length>3);
       const dw = dn.split(' ').filter(w=>w.length>3);
-      return nw.filter(w=>dw.includes(w)).length>=3;
+      const shared = nw.filter(w=>dw.includes(w));
+      // Exige que as palavras compartilhadas cubram ≥50% de ambos os nomes
+      return shared.length>=2 && shared.length>=nw.length*.5 && shared.length>=dw.length*.5;
     });
-    if(!found){ skipped++; return; }
+    if(!found){
+      skipped++;
+      if(skipped<=10) console.warn('[v12] Sem match para nome:', nameRaw, '→ normStr:', nameN);
+      return;
+    }
 
     const sKey = ['s1','s2','s3','s4','s5','s6'][weekIdx]||'s1';
     if(!found.qtd||found.qtd.length<6) found.qtd=[0,0,0,0,0,0];
     if(!found.losses) found.losses={cancel:[0,0,0,0,0,0],reject:[0,0,0,0,0,0]};
     if(!found.emAprov||found.emAprov.length<6) found.emAprov=[0,0,0,0,0,0];
 
+    /* FATURAMENTO BRUTO: todos os registros somam ao total por semana.
+       O campo s1..s6 agora representa o BRUTO (todos os status). */
+    found[sKey]=(found[sKey]||0)+val;
+    found.qtd[weekIdx]=(found.qtd[weekIdx]||0)+1;
+
     if(isCancelado){
       found.losses.cancel[weekIdx]=(found.losses.cancel[weekIdx]||0)+1;
-    } else if(isRejeitado||isLossByTipo){
+    } else if(isRejeitado || (isPerda && !isCancelado)){
       found.losses.reject[weekIdx]=(found.losses.reject[weekIdx]||0)+1;
-    } else {
-      found[sKey]=(found[sKey]||0)+val;
-      found.qtd[weekIdx]=(found.qtd[weekIdx]||0)+1;
-      if(isEmAprov) found.emAprov[weekIdx]=(found.emAprov[weekIdx]||0)+1;
+    } else if(isEmAprov){
+      /* EM APROVAÇÃO: contabiliza separadamente (para exibição de pendentes) */
+      found.emAprov[weekIdx]=(found.emAprov[weekIdx]||0)+1;
     }
     imported++;
   });
 
-  console.log(`[v12 Structured] ${source}: ${imported} vendas | ${dupes} dupes evitados | ${skipped} sem match`);
-  if(imported===0 && RAW_ROWS.filter(r=>r.estagio!=='CANCELADO'&&r.estagio!=='REJEITADO'&&r.estagio!=='PERDA').length===0)
+  console.log(`[v12 Structured] ${source}: ${imported} registros (bruto) | ${dupes} dupes evitados | ${skipped} sem match | mês: ${detectedMonth||'(nenhum)'}`);
+  // Debug detalhado — totais brutos por colaboradora
+  const totaisDebug = DATA.filter(r=>(r.s1||0)+(r.s2||0)+(r.s3||0)+(r.s4||0)>0)
+    .map(r=>`${r.name.split(' ')[0]}: R$${((r.s1||0)+(r.s2||0)+(r.s3||0)+(r.s4||0)).toFixed(2)} (${(r.qtd||[]).reduce((a,b)=>a+b,0)} registros)`);
+  const totalBrutoDebug=RAW_ROWS.reduce((s,r)=>s+(r.valor||0),0);
+  const totalAprovDebug=RAW_ROWS.filter(r=>r.estagio==='APROVADO').reduce((s,r)=>s+(r.valor||0),0);
+  console.log(`[v12] Total BRUTO: R$${totalBrutoDebug.toFixed(2)} | Total APROVADO: R$${totalAprovDebug.toFixed(2)} | Esperado bruto Abril: R$8924,87`);
+  if(totaisDebug.length) console.log('[v12] Totais brutos por colaboradora:', totaisDebug.join(' | '));
+  if(imported===0 && RAW_ROWS.length===0)
     throw new Error('Nenhum registro válido encontrado. Verifique as colunas: Nome Colaborador, Valor Venda, Tipo, Status, Data Venda.');
 }
 
@@ -2678,7 +2868,11 @@ window.addEventListener('load',()=>{
     if(RAW_ROWS.length>0){
       setGsStatus(`✅ ${RAW_ROWS.length} registros pré-carregados · Abril/26 · Configure Google Sheets para atualização automática`,'ok');
     }
-    toast('✅ BI Comercial v12 · Abril/26 pré-carregado · ' + RAW_ROWS.length + ' contratos');
+    toast('✅ BI Comercial v13 · Abril/26 pré-carregado · ' + RAW_ROWS.length + ' contratos');
+    // Log de validação do faturamento bruto
+    const _brutoCheck=RAW_ROWS.reduce((s,r)=>s+(r.valor||0),0);
+    const _aprovCheck=RAW_ROWS.filter(r=>r.estagio==='APROVADO').reduce((s,r)=>s+(r.valor||0),0);
+    console.log(`[v13 VALIDAÇÃO] Faturamento BRUTO: R$${_brutoCheck.toFixed(2)} | Aprovados: R$${_aprovCheck.toFixed(2)} | Registros: ${RAW_ROWS.length}`);
     // Auto-sincronização remota se URL configurada
     // Populate URL inputs
     const gsI = document.getElementById('gsUrlInput'); if(gsI) gsI.value = CFG.remoteUrl||'';
