@@ -466,9 +466,9 @@ body>*{position:relative;z-index:1}
   </div>
   <div class="gc" style="padding:18px">
     <div class="sh">
-      📋 Ranking Completo — Meta × Aprovado × Perdas
+      📋 Ranking Completo — Todos os Contratos de Abril/2026
       <select class="f-sel" id="rankFilter" onchange="renderRanking()" style="margin-left:auto;font-size:11px">
-        <option value="receita">Ordenar: Aprovado (R$)</option>
+        <option value="receita">Ordenar: Total (todos os estágios)</option>
         <option value="qtd">Ordenar: Quantidade</option>
         <option value="pct">Ordenar: % Meta</option>
       </select>
@@ -479,10 +479,10 @@ body>*{position:relative;z-index:1}
           <tr>
             <th>Pos</th><th>Colaboradora</th>
             <th>S1</th><th>S2</th><th>S3</th><th>S4</th>
-            <th style="color:var(--green)">✅ Aprovado R$</th><th>Qtd Aprov.</th>
+            <th>Total R$ (todos)</th><th>Qtd</th>
             <th>Meta Mensal</th><th>Meta Semanal</th>
             <th>% Meta</th><th>Perdas ⚠️</th><th>⏳ Pend.</th>
-            <th title="Todos os status Abril/2026">Bruto (info)</th>
+            <th style="color:var(--green)">✅ Aprovado</th>
             <th>Progresso</th><th>Status</th>
           </tr>
         </thead>
@@ -1008,109 +1008,137 @@ function loadSettings(){
   }
 }
 
-/* ──────────── COMPUTED (v15 · Ranking corrigido) ──────────────────────────
-   FONTE DE VERDADE: RAW_ROWS — já filtrado para Abril/2026 pelos processadores.
+/* ══════════════════════════════════════════════════════════════════════════
+   computeData() v16 — FONTE ÚNICA: RAW_ROWS · Um Map por pessoa
+   ─────────────────────────────────────────────────────────────────────────
+   INSTRUÇÃO 1 — Unificação total: normR() aplica .trim().toUpperCase() +
+     sem acentos em CADA ponto de comparação. Um nome = uma linha no ranking.
 
-   CORREÇÃO 1 — Unificação de nomes: normR() aplica .trim().toUpperCase() + sem
-     acentos em TODOS os nomes antes de qualquer comparação ou soma. Isso garante
-     que "Aline", "ALINE" e "aline " sejam tratadas como a mesma pessoa.
+   INSTRUÇÃO 2 — Todos os estágios: `total` (= `faturamentoBruto`) soma
+     APROVADO + EM APROVAÇÃO + CANCELADO + REJEITADO de Abril/2026.
+     É este total que vai para o ranking, pódio, KPI e % meta.
 
-   CORREÇÃO 2 — Soma apenas de Abril/2026: RAW_ROWS já contém exclusivamente
-     registros de Abril/2026 (pré-filtro do processador). Nenhum resíduo de outro
-     mês pode inflar o valor — a soma é feita diretamente sobre esse array limpo.
-
-   CORREÇÃO 3 — Ranking mostra apenas APROVADO: `aprovadoVal` / `aprovadoQtd` são
-     calculados filtrando `estagio === 'APROVADO'`. O campo `total` usado para
-     ordenar e exibir no ranking É o aprovadoVal — não o bruto. Cancelados,
-     rejeitados e pendentes NÃO entram no total do ranking.
-   ─────────────────────────────────────────────────────────────────────────── */
+   GABARITOS Abril/2026 — valores exatos que devem aparecer no dashboard:
+     SAMILA VIEIRA DE SOUZA LIMA        R$ 1.169,85
+     VANESSA SOARES SOUSA               R$ 1.167,86
+     ADRIELLE DOS SANTOS MAIA           R$   934,89
+     REBECA BRUNA CARVALHO DE SOUZA     R$   913,88
+     CLAUDIA MOREIRA BISPO              R$   864,89
+     GABRIELA ARAUJO SANTOS OLIVEIRA    R$   849,89
+     VITORIA KAROLYNE PEREIRA DE JESUS  R$   825,89
+     LUANA GOMES DA SILVA               R$   704,91
+     MIKELLE SANTOS ARAUJO DE OLIVEIRA  R$   640,92
+     ADLA MILLENA GOMES BRANDAO         R$   450,94
+     BRUNA EMILE SANTOS SENA            R$   375,95
+     HELOISA DA SILVA COELHO VIEIRA     R$   324,96
+     TOTAL BRUTO                        R$ 9.224,83
+══════════════════════════════════════════════════════════════════════════ */
 function computeData(){
-  /* normR: CORREÇÃO 1 — UPPERCASE + trim() + sem acentos em todo ponto de comparação */
+  /* normR: INSTRUÇÃO 1 — UPPERCASE + trim() + sem acentos */
   const normR = s => {
     const nfd = String(s||'').trim().toUpperCase().normalize('NFD');
-    let x = '';
+    let x='';
     for(let i=0;i<nfd.length;i++){const cc=nfd.charCodeAt(i);if(cc<0x0300||cc>0x036f)x+=nfd[i];}
     return x.replace(/\s+/g,' ').trim();
   };
 
-  return DATA.map(r=>{
+  /* ── PASSO 1: agrega RAW_ROWS numa única passagem ───────────────────────
+     Map: normName → objeto com totais por semana e por status.
+     RAW_ROWS já é Abril/2026 (pré-filtrado). Dupla verificação por segurança. */
+  const ABRIL_YYYY_MM = '2026-04';
+  const agg = new Map();
+
+  RAW_ROWS.forEach(rw => {
+    // Dupla verificação: só Abril/2026 (INSTRUÇÃO 4 — padronização de data)
+    const ds = String(rw.data||'');
+    if(ds && ds.substring(0,7) !== ABRIL_YYYY_MM) return;
+
+    const key = normR(rw.nome); // INSTRUÇÃO 1: UPPERCASE + trim() → chave única
+    const val = rw.valor || 0;
+    const est = String(rw.estagio||'').toUpperCase();
+    const si  = Math.max(0, Math.min(5, typeof rw.semana==='number' ? rw.semana : 0));
+
+    if(!agg.has(key)){
+      agg.set(key,{
+        rawName:   rw.nome,          // nome original para exibição
+        total:     0,                // INSTRUÇÃO 2: TODOS os estágios
+        aprovado:  0,                // somente APROVADO (coluna informativa)
+        aprovQtd:  0,
+        qtdTotal:  0,
+        semVals:   [0,0,0,0,0,0],   // bruto por semana
+        semQtds:   [0,0,0,0,0,0],
+        cancel:    [0,0,0,0,0,0],
+        rejeit:    [0,0,0,0,0,0],
+        emAprov:   [0,0,0,0,0,0],
+      });
+    }
+    const a = agg.get(key);
+
+    // INSTRUÇÃO 2: total = TODOS os estágios (bruto real)
+    a.total    += val;
+    a.qtdTotal++;
+    a.semVals[si] += val;
+    a.semQtds[si]++;
+
+    if(est === 'APROVADO'){
+      a.aprovado += val;
+      a.aprovQtd++;
+    } else if(est === 'CANCELADO')         { a.cancel[si]++; }
+    else if(est === 'REJEITADO')           { a.rejeit[si]++; }
+    else if(est.includes('EM APROV'))      { a.emAprov[si]++; }
+  });
+
+  /* ── PASSO 2: mescla com DATA (meta, status, foto) ──────────────────── */
+  return DATA.map(r => {
+    const rn     = normR(r.name);
+    const a      = agg.get(rn);
     const active = isActive(r);
-    const rn     = normR(r.name);  // nome normalizado: "VANESSA SOARES SOUSA"
 
-    /* ── CORREÇÃO 2+3: filtra RAW_ROWS (já é Abril/2026) por nome + status ──
-       aprovRows: somente estagio==='APROVADO' → valor real do ranking / financeiro
-       brutoRows: todos os status → faturamento bruto (informativo)               */
-    const aprovRows    = RAW_ROWS.filter(rw => rw.estagio === 'APROVADO' && normR(rw.nome) === rn);
-    const brutoRows    = RAW_ROWS.filter(rw => normR(rw.nome) === rn);
-    const cancelRows   = RAW_ROWS.filter(rw => rw.estagio === 'CANCELADO'   && normR(rw.nome) === rn);
-    const rejeitRows   = RAW_ROWS.filter(rw => rw.estagio === 'REJEITADO'   && normR(rw.nome) === rn);
-    const emAprovRows  = RAW_ROWS.filter(rw => rw.estagio === 'EM APROVAÇÃO'&& normR(rw.nome) === rn);
+    // Valores financeiros — 100% do agregador, nunca dos campos s1..s6 do DATA
+    const total           = a ? a.total    : 0;  // bruto (todos os estágios)
+    const aprovadoVal     = a ? a.aprovado : 0;  // somente APROVADO
+    const aprovadoQtd     = a ? a.aprovQtd : 0;
+    const faturamentoBruto = total;
+    const totalQtd        = a ? a.qtdTotal : 0;
 
-    /* CORREÇÃO 3: total = soma dos APROVADOS (é o valor que vai para o ranking) */
-    const aprovadoVal  = aprovRows.reduce((s,rw) => s+(rw.valor||0), 0);
-    const aprovadoQtd  = aprovRows.length;
+    const semVals  = a ? a.semVals : [0,0,0,0,0,0];
+    const cancelArr = a ? a.cancel  : [0,0,0,0,0,0];
+    const rejeitArr = a ? a.rejeit  : [0,0,0,0,0,0];
+    const emAprovArr= a ? a.emAprov : [0,0,0,0,0,0];
+    const totalLoss    = cancelArr.reduce((s,v)=>s+v,0) + rejeitArr.reduce((s,v)=>s+v,0);
+    const totalEmAprov = emAprovArr.reduce((s,v)=>s+v,0);
 
-    /* Faturamento bruto = todos os status (informativo, não entra no ranking) */
-    const faturamentoBruto = brutoRows.reduce((s,rw) => s+(rw.valor||0), 0);
-
-    /* total = aprovadoVal: ÚNICA fonte de verdade para ranking, pódio, KPI e % meta */
-    const total = aprovadoVal;
-
-    /* Quantidade total de contratos Abril/2026 (todos os status) */
-    const totalQtd = brutoRows.length;
-
-    /* Perdas contadas por semana a partir de RAW_ROWS (CORREÇÃO 2: só Abril/2026) */
-    /* Mantém também os arrays legados losses[] / emAprov[] para compatibilidade   */
-    const totalLoss    = cancelRows.length + rejeitRows.length;
-    const totalEmAprov = emAprovRows.length;
-
-    /* % de meta: baseada no aprovadoVal vs metaReal */
-    const metaReal    = (r.metaInd ?? CFG.metaInd ?? 1362) || CFG.metaInd || 1362;
+    // Meta / % atingimento (baseado no bruto — todos os estágios)
+    const metaReal    = (r.metaInd ?? CFG.metaInd ?? 1362) || 1362;
     const metaDisplay = active ? metaReal : 0;
     const p           = metaReal > 0 ? total / metaReal : null;
 
-    /* Valores por semana para gráficos (mantém compatibilidade com SEMANAS_BASE) */
-    /* Recalcula s1..s6 a partir de RAW_ROWS APROVADOS para garantir consistência */
-    const semVals = {};
-    const semQtds = {};
-    SEMANAS_BASE.forEach((sm, i) => {
-      const sAprov = aprovRows.filter(rw => rw.semana === i);
-      semVals[sm.key] = sAprov.reduce((s,rw)=>s+(rw.valor||0),0);
-      semQtds[i]      = sAprov.length;
-    });
-
-    /* Arrays de perdas por semana (para gráficos de qualidade) */
-    const cancelBySem = Array(6).fill(0);
-    const rejeitBySem = Array(6).fill(0);
-    const emAprovBySem= Array(6).fill(0);
-    cancelRows.forEach(rw  => { if(rw.semana>=0&&rw.semana<6) cancelBySem[rw.semana]++; });
-    rejeitRows.forEach(rw  => { if(rw.semana>=0&&rw.semana<6) rejeitBySem[rw.semana]++; });
-    emAprovRows.forEach(rw => { if(rw.semana>=0&&rw.semana<6) emAprovBySem[rw.semana]++; });
-
-    const qtdBySem = Array(6).fill(0);
-    aprovRows.forEach(rw => { if(rw.semana>=0&&rw.semana<6) qtdBySem[rw.semana]++; });
+    // Campos s1..s6 atualizados no objeto DATA para compatibilidade com gráficos
+    SEMANAS_BASE.forEach((sm,i) => { r[sm.key] = semVals[i]||0; });
 
     return {
       ...r,
-      ...semVals,            // s1..s6 recalculados com APROVADOS
-      qtd:      qtdBySem,
-      losses:   { cancel: cancelBySem, reject: rejeitBySem },
-      emAprov:  emAprovBySem,
-      total,                 // = aprovadoVal  ← RANKING / KPI / PÓDIO
+      s1: semVals[0]||0, s2: semVals[1]||0,
+      s3: semVals[2]||0, s4: semVals[3]||0,
+      s5: semVals[4]||0, s6: semVals[5]||0,
+      qtd:     a ? a.semQtds : [0,0,0,0,0,0],
+      losses:  { cancel: cancelArr, reject: rejeitArr },
+      emAprov: emAprovArr,
+      total,             // BRUTO — ranking, pódio, KPI, % meta
       totalQtd,
-      meta:       metaDisplay,
+      aprovadoVal,       // somente APROVADO (coluna informativa no ranking)
+      aprovadoQtd,
+      faturamentoBruto,
+      meta:     metaDisplay,
       metaReal,
-      pct:        p,
+      pct:      p,
       totalLoss,
       totalEmAprov,
-      aprovadoVal,           // alias explícito
-      aprovadoQtd,
-      faturamentoBruto,      // todos os status (informativo)
     };
-  }).sort((a,b)=>{
-    if(isActive(a)&&!isActive(b)) return -1;
-    if(!isActive(a)&&isActive(b)) return  1;
-    return (b.total||0)-(a.total||0);  // ordena por aprovadoVal desc
+  }).sort((a,b) => {
+    if(isActive(a) && !isActive(b)) return -1;
+    if(!isActive(a) && isActive(b)) return  1;
+    return (b.total||0) - (a.total||0);  // ordena por bruto desc
   });
 }
 
@@ -1232,12 +1260,9 @@ function renderVisaoChart(){
   });
 }
 
-/* ──────────── RANKING (v15 · Corrigido) ───────────────────────────────────
-   CORREÇÃO 1: r.name exibido limpo mas os valores vêm de computeData() que
-     já usou normR() para unificar todas as variações de nome.
-   CORREÇÃO 2: todos os valores vêm de RAW_ROWS (já é só Abril/2026).
-   CORREÇÃO 3: coluna "Total" e ordenação = aprovadoVal (somente APROVADO).
-               Bruto exibido como coluna informativa separada.
+/* ──────────── RANKING (v16 · Todos os estágios) ───────────────────────────
+   total  = bruto (todos os estágios Abril/2026) — é este que ordena e aparece
+   aprovadoVal = somente APROVADO — coluna informativa separada
    ─────────────────────────────────────────────────────────────────────────── */
 function renderRanking(){
   const d    = computeData();
@@ -1246,9 +1271,9 @@ function renderRanking(){
   const sorted = [...d].sort((a,b)=>{
     if(isActive(a)&&!isActive(b)) return -1;
     if(!isActive(a)&&isActive(b)) return  1;
-    if(mode==='qtd') return b.aprovadoQtd - a.aprovadoQtd;
-    if(mode==='pct') return (b.pct||0) - (a.pct||0);
-    return (b.aprovadoVal||0) - (a.aprovadoVal||0);  // padrão: ordena por APROVADO
+    if(mode==='qtd') return (b.totalQtd||0)-(a.totalQtd||0);
+    if(mode==='pct') return (b.pct||0)-(a.pct||0);
+    return (b.total||0)-(a.total||0);  // total = bruto
   });
 
   const tb = document.getElementById('rtBody');
@@ -1259,40 +1284,32 @@ function renderRanking(){
     const active = isActive(r);
     if(active) pos++;
 
-    const p   = r.pct !== null ? Math.min(r.pct, 1) : 0;
-    const pT  = r.pct !== null ? fP(r.pct * 100)    : '—';
-    const cl  = pos===1?'p1':pos===2?'p2':pos===3?'p3':'pn';
-    const co  = pCol(r.pct);
+    const p  = r.pct !== null ? Math.min(r.pct,1) : 0;
+    const pT = r.pct !== null ? fP(r.pct*100)     : '—';
+    const cl = pos===1?'p1':pos===2?'p2':pos===3?'p3':'pn';
+    const co = pCol(r.pct);
 
     const totalLoss = (r.losses?.cancel||[]).reduce((a,b)=>a+b,0)
                     + (r.losses?.reject||[]).reduce((a,b)=>a+b,0);
-    const lossCell  = totalLoss > 2
+    const lossCell  = totalLoss>2
       ? `<span class="alert-tag">⚠️ ${totalLoss}</span>`
-      : totalLoss > 0
+      : totalLoss>0
         ? `<span class="warn-tag">⚠️ ${totalLoss}</span>`
         : `<span style="color:var(--green);font-size:11px">✓ 0</span>`;
 
-    const emAprovTotal = r.totalEmAprov || 0;
-    const emAprovCell  = emAprovTotal > 0
+    const emAprovTotal = r.totalEmAprov||0;
+    const emAprovCell  = emAprovTotal>0
       ? `<span class="warn-tag" style="background:var(--yd);color:var(--yel)">⏳ ${emAprovTotal}</span>`
       : `<span style="color:var(--mu);font-size:11px">—</span>`;
 
-    const metaSemVal = r.metaSem || CFG.metaSem || 340;
+    const metaSemVal = r.metaSem||CFG.metaSem||340;
+    const semKeys    = SEMANAS_BASE.map(s=>s.key);
+    let currSemVal   = 0;
+    for(let i=semKeys.length-1;i>=0;i--){ if((r[semKeys[i]]||0)>0){currSemVal=r[semKeys[i]];break;} }
 
-    // Semana com dados mais recentes (baseada em s1..s6 recalculados)
-    const semKeys = SEMANAS_BASE.map(s=>s.key);
-    let currSemVal = 0;
-    for(let i = semKeys.length-1; i >= 0; i--){
-      if((r[semKeys[i]]||0) > 0){ currSemVal = r[semKeys[i]]; break; }
-    }
-
-    // CORREÇÃO 3: exibe aprovadoVal como "Total Aprovado" — o valor que bate com o financeiro
-    const aprovValCell = `<span style="color:var(--green);font-weight:700">${brl(r.aprovadoVal||0)}</span>
-      <br><span style="color:var(--mu);font-size:10px">${r.aprovadoQtd||0} ctrs</span>`;
-
-    // Bruto informativo (todos os status Abril/2026)
-    const brutoCell = r.faturamentoBruto > 0
-      ? `<span style="color:var(--tx2);font-size:11px">${brl(r.faturamentoBruto)}</span>`
+    // Aprovado como coluna informativa separada
+    const aprovCell = r.aprovadoVal>0
+      ? `<span style="color:var(--green);font-size:11px">${brl(r.aprovadoVal)}<br><span style="color:var(--mu)">${r.aprovadoQtd} ctrs</span></span>`
       : `<span style="color:var(--mu);font-size:11px">—</span>`;
 
     return `<tr class="${pos<=3&&active?'top3':''}">
@@ -1302,10 +1319,10 @@ function renderRanking(){
       <td style="font-size:11px">${brlK(r.s2||0)}</td>
       <td style="font-size:11px">${brlK(r.s3||0)}</td>
       <td style="font-size:11px">${brlK(r.s4||0)}</td>
-      <td style="font-weight:700;color:var(--green)">${brl(r.aprovadoVal||0)}</td>
-      <td style="color:var(--tx2)">${r.aprovadoQtd||0}</td>
+      <td style="font-weight:700;color:var(--tx)">${brl(r.total||0)}</td>
+      <td style="color:var(--tx2)">${r.totalQtd||0}</td>
       <td><div class="meta-badge">
-        <span class="meta-badge-real">${brl(r.aprovadoVal||0)}</span>
+        <span class="meta-badge-real">${brl(r.total||0)}</span>
         <span class="meta-badge-meta">Meta: ${active?brl(r.metaReal||r.meta):'Afastada'}</span>
       </div></td>
       <td><div class="meta-badge">
@@ -1315,33 +1332,29 @@ function renderRanking(){
       <td style="font-weight:700;color:${co}">${pT}</td>
       <td>${lossCell}</td>
       <td>${emAprovCell}</td>
-      <td>${brutoCell}</td>
+      <td>${aprovCell}</td>
       <td><div class="mbar"><div class="mbar-f" style="width:${(p*100).toFixed(0)}%;background:${co}"></div></div></td>
       <td>${statusTag(r.pct,r.status)}</td>
     </tr>`;
   }).join('');
 
-  // LOG DE CONFERÊNCIA DO RANKING — abre o console e cruza com o Excel
-  const rankLog = sorted.filter(r=>isActive(r)).map((r,i)=>{
+  // LOG DE CONFERÊNCIA — cruza com o Excel/gabarito
+  const ativos = sorted.filter(r=>isActive(r));
+  console.log('');
+  console.log('╔══════════════════════════════════════════════════════════════════╗');
+  console.log('║  RANKING v16 · Abril/2026 · TODOS OS ESTÁGIOS (conferir Excel) ║');
+  console.log('╠══════════════════════════════════════════════════════════════════╣');
+  ativos.forEach((r,i)=>{
     const pad=(s,n)=>(s+'').padEnd(n);
-    return `  ${pad((i+1)+'.',3)} ${pad(r.name.split(' ').slice(0,2).join(' '),28)} ` +
-           `APROVADO: R$${(r.aprovadoVal||0).toFixed(2).padStart(9)} (${r.aprovadoQtd||0} ctrs) | ` +
-           `BRUTO: R$${(r.faturamentoBruto||0).toFixed(2).padStart(9)}`;
+    console.log(`  ${pad((i+1)+'.',3)} ${pad(r.name.split(' ').slice(0,2).join(' '),26)} BRUTO: R$${(r.total||0).toFixed(2).padStart(10)}  (${r.totalQtd} reg.) | APROV: R$${(r.aprovadoVal||0).toFixed(2).padStart(9)}`);
   });
-  if(rankLog.length){
-    console.log('');
-    console.log('╔═══════════════════════════════════════════════════════════════════╗');
-    console.log('║  RANKING v15 · Abril/2026 · APROVADO × BRUTO (conferir Excel)    ║');
-    console.log('╠═══════════════════════════════════════════════════════════════════╣');
-    rankLog.forEach(l=>console.log(l));
-    const totAprov=sorted.filter(r=>isActive(r)).reduce((s,r)=>s+(r.aprovadoVal||0),0);
-    const totBruto=sorted.filter(r=>isActive(r)).reduce((s,r)=>s+(r.faturamentoBruto||0),0);
-    console.log('╠═══════════════════════════════════════════════════════════════════╣');
-    console.log(`  TOTAL APROVADO (time ativo): R$ ${totAprov.toFixed(2)}`);
-    console.log(`  TOTAL BRUTO    (time ativo): R$ ${totBruto.toFixed(2)}`);
-    console.log('╚═══════════════════════════════════════════════════════════════════╝');
-    console.log('');
-  }
+  const totBruto = ativos.reduce((s,r)=>s+(r.total||0),0);
+  const totAprov = ativos.reduce((s,r)=>s+(r.aprovadoVal||0),0);
+  console.log('╠══════════════════════════════════════════════════════════════════╣');
+  console.log(`  TOTAL BRUTO  (time ativo): R$ ${totBruto.toFixed(2)}  ← deve ser R$ 9.224,83`);
+  console.log(`  TOTAL APROVADO           : R$ ${totAprov.toFixed(2)}`);
+  console.log('╚══════════════════════════════════════════════════════════════════╝');
+  console.log('');
 }
 function renderPodio(d){
   /* FIX 2f: incluir não-ativas com pct calculado no pódio */
